@@ -1,0 +1,200 @@
+{
+  "overall": {
+    "n": 14139,
+    "accuracy": 0.7542,
+    "recall": 0.8012,
+    "precision": 0.7324,
+    "f1": 0.7653,
+    "roc_auc": 0.8308
+  },
+  "by_age": [
+    {
+      "group_column": "AgeGroup",
+      "group": "18-34",
+      "n": 911,
+      "accuracy": 0.9001,
+      "recall": 0.34,
+      "precision": 0.5763,
+      "fpr": 0.0308,
+      "fnr": 0.66,
+      "f1": 0.4277,
+      "roc_auc": 0.8451,
+      "recall_gap": -0.4612,
+      "flag": "UNDERPERFORMING"
+    },
+    {
+      "group_column": "AgeGroup",
+      "group": "35-49",
+      "n": 2159,
+      "accuracy": 0.7777,
+      "recall": 0.5938,
+      "precision": 0.6661,
+      "fpr": 0.1374,
+      "fnr": 0.4062,
+      "f1": 0.6279,
+      "roc_auc": 0.8416,
+      "recall_gap": -0.2074,
+      "flag": "UNDERPERFORMING"
+    },
+    {
+      "group_column": "AgeGroup",
+      "group": "50-64",
+      "n": 5113,
+      "accuracy": 0.7542,
+      "recall": 0.7924,
+      "precision": 0.7438,
+      "fpr": 0.2859,
+      "fnr": 0.2076,
+      "f1": 0.7674,
+      "roc_auc": 0.8268,
+      "recall_gap": -0.0088,
+      "flag": "OK"
+    },
+    {
+      "group_column": "AgeGroup",
+      "group": "65+",
+      "n": 5956,
+      "accuracy": 0.7235,
+      "recall": 0.8586,
+      "precision": 0.7364,
+      "fpr": 0.4937,
+      "fnr": 0.1414,
+      "f1": 0.7929,
+      "roc_auc": 0.7675,
+      "recall_gap": 0.0574,
+      "flag": "OK"
+    }
+  ],
+  "by_income": [
+    {
+      "group_column": "IncomeGroup",
+      "group": "High income",
+      "n": 6347,
+      "accuracy": 0.7681,
+      "recall": 0.7003,
+      "precision": 0.6952,
+      "fpr": 0.19,
+      "fnr": 0.2997,
+      "f1": 0.6977,
+      "roc_auc": 0.8444,
+      "recall_gap": -0.1009,
+      "flag": "UNDERPERFORMING"
+    },
+    {
+      "group_column": "IncomeGroup",
+      "group": "Low income",
+      "n": 2757,
+      "accuracy": 0.7559,
+      "recall": 0.8952,
+      "precision": 0.7744,
+      "fpr": 0.524,
+      "fnr": 0.1048,
+      "f1": 0.8304,
+      "roc_auc": 0.7739,
+      "recall_gap": 0.0939,
+      "flag": "OK"
+    },
+    {
+      "group_column": "IncomeGroup",
+      "group": "Middle income",
+      "n": 5035,
+      "accuracy": 0.7358,
+      "recall": 0.8269,
+      "precision": 0.7328,
+      "fpr": 0.3784,
+      "fnr": 0.1731,
+      "f1": 0.777,
+      "roc_auc": 0.8008,
+      "recall_gap": 0.0257,
+      "flag": "OK"
+    }
+  ],
+  "by_sex": [
+    {
+      "group_column": "SexGroup",
+      "group": "Female",
+      "n": 7675,
+      "accuracy": 0.762,
+      "recall": 0.7945,
+      "precision": 0.7336,
+      "fpr": 0.2684,
+      "fnr": 0.2055,
+      "f1": 0.7629,
+      "roc_auc": 0.8413,
+      "recall_gap": -0.0067,
+      "flag": "OK"
+    },
+    {
+      "group_column": "SexGroup",
+      "group": "Male",
+      "n": 6464,
+      "accuracy": 0.745,
+      "recall": 0.8086,
+      "precision": 0.731,
+      "fpr": 0.3242,
+      "fnr": 0.1914,
+      "f1": 0.7678,
+      "roc_auc": 0.8171,
+      "recall_gap": 0.0074,
+      "flag": "OK"
+    }
+  ],
+  "by_bmi": [
+    {
+      "group_column": "BMICategory",
+      "group": "Normal",
+      "n": 2917,
+      "accuracy": 0.7861,
+      "recall": 0.5251,
+      "precision": 0.6295,
+      "fpr": 0.116,
+      "fnr": 0.4749,
+      "f1": 0.5726,
+      "roc_auc": 0.8376,
+      "recall_gap": -0.2761,
+      "flag": "UNDERPERFORMING"
+    },
+    {
+      "group_column": "BMICategory",
+      "group": "Obese",
+      "n": 6349,
+      "accuracy": 0.7603,
+      "recall": 0.8996,
+      "precision": 0.7724,
+      "fpr": 0.5053,
+      "fnr": 0.1004,
+      "f1": 0.8312,
+      "roc_auc": 0.7859,
+      "recall_gap": 0.0984,
+      "flag": "OK"
+    },
+    {
+      "group_column": "BMICategory",
+      "group": "Overweight",
+      "n": 4746,
+      "accuracy": 0.7244,
+      "recall": 0.7135,
+      "precision": 0.6758,
+      "fpr": 0.2671,
+      "fnr": 0.2865,
+      "f1": 0.6941,
+      "roc_auc": 0.8,
+      "recall_gap": -0.0878,
+      "flag": "UNDERPERFORMING"
+    },
+    {
+      "group_column": "BMICategory",
+      "group": "Underweight",
+      "n": 127,
+      "accuracy": 0.8346,
+      "recall": 0.5517,
+      "precision": 0.6667,
+      "fpr": 0.0816,
+      "fnr": 0.4483,
+      "f1": 0.6038,
+      "roc_auc": 0.8681,
+      "recall_gap": -0.2495,
+      "flag": "UNDERPERFORMING"
+    }
+  ]
+}

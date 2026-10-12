@@ -1,0 +1,156 @@
+{
+  "outcome": {
+    "low": "Your answers indicate a lower likelihood right now. Keep up healthy habits and re-check regularly.",
+    "moderate": "Your answers indicate a higher likelihood of prediabetes or diabetes. This is not a diagnosis. Only a blood test can confirm it. Please see a doctor.",
+    "high": "Your answers indicate a higher likelihood of prediabetes or diabetes. This is not a diagnosis. Only a blood test can confirm it. Please see a doctor."
+  },
+  "summary": {
+    "low": {
+      "what_this_means": "Based on your answers, your estimated risk is lower than most people in the survey data we learned from. This is a screening estimate, not a diagnosis.",
+      "next_step": "Re-check your risk in about a year."
+    },
+    "moderate": {
+      "what_this_means": "Based on your answers, your estimated risk is moderate. This is a screening estimate, not a diagnosis. Risk can change with lifestyle adjustments.",
+      "next_step": "See a doctor in the next few months for a blood sugar test."
+    },
+    "high": {
+      "what_this_means": "Based on your answers, your estimated risk is higher than most people in the survey data we learned from. This is a screening estimate, not a diagnosis.",
+      "next_step": "Book a blood test (fasting glucose or HbA1c) soon."
+    }
+  },
+  "timeline": {
+    "low": "Within 12 months: re-check your risk, and get a routine blood test at your next health check-up.",
+    "moderate": "Within 1-3 months: get a blood sugar test and review your blood pressure and cholesterol.",
+    "high": "Within 2 weeks: book a fasting blood glucose or HbA1c test. Bring this report to your doctor."
+  },
+  "precautions": {
+    "baseline": {
+      "food_and_nutrition": [
+        "Choose whole grains, vegetables and fruit as part of your daily meals.",
+        "Cut sugary drinks and sweets from your diet."
+      ],
+      "physical_activity": [
+        "Aim for about 150 minutes a week of moderate activity, such as brisk walking."
+      ],
+      "weight": [
+        "Maintain a healthy weight through balanced eating and regular movement."
+      ],
+      "habits": [
+        "Sleep 7-8 hours each night for better health.",
+        "Manage stress through relaxation, hobbies, or talking with others.",
+        "Stay hydrated by drinking water throughout the day.",
+        "Get regular check-ups to monitor your health."
+      ],
+      "medical_follow_up": [
+        "Keep up with routine health screenings as recommended by your doctor."
+      ]
+    },
+    "moderate_high_extra": {
+      "food_and_nutrition": [
+        "Choose smaller portion sizes and eat less refined carbohydrate (white bread, white rice, sweets)."
+      ],
+      "weight": [
+        "Track your weight monthly to stay aware of changes."
+      ],
+      "habits": [
+        "Keep a record of your blood pressure and cholesterol readings if you have them."
+      ],
+      "medical_follow_up": [
+        "Ask your doctor about a diabetes prevention program if one is available in your area."
+      ]
+    },
+    "personalized": [
+      {
+        "condition": "BMI >= 25 && BMI < 30",
+        "group": "weight",
+        "advice": "Gradual weight loss of 5-7% of body weight can significantly lower your risk."
+      },
+      {
+        "condition": "BMI >= 30",
+        "group": "weight",
+        "advice": "Ask your doctor about a supervised weight management plan."
+      },
+      {
+        "condition": "BMI < 18.5",
+        "group": "weight",
+        "advice": "Talk to a doctor about healthy weight gain."
+      },
+      {
+        "condition": "PhysActivity == 0",
+        "group": "physical_activity",
+        "advice": "Start with 10-minute walks and build up gradually to about 150 minutes per week."
+      },
+      {
+        "condition": "Smoker == 1",
+        "group": "habits",
+        "advice": "Quitting smoking is important. Smoking raises diabetes risk and harms your heart. Seek support if needed."
+      },
+      {
+        "condition": "Fruits == 0 || Veggies == 0",
+        "group": "food_and_nutrition",
+        "advice": "Add one serving of fruit or vegetables per day to your meals."
+      },
+      {
+        "condition": "HvyAlcoholConsump == 1",
+        "group": "habits",
+        "advice": "Reduce alcohol consumption to improve your overall health."
+      },
+      {
+        "condition": "HighBP == 1",
+        "group": "medical_follow_up",
+        "advice": "Get regular blood pressure checks and follow a low-salt diet."
+      },
+      {
+        "condition": "HighChol == 1",
+        "group": "medical_follow_up",
+        "advice": "Follow a cholesterol-friendly diet and keep up with medical follow-up."
+      },
+      {
+        "condition": "CholCheck == 0",
+        "group": "medical_follow_up",
+        "advice": "Get your cholesterol checked by a healthcare provider."
+      },
+      {
+        "condition": "AnyHealthcare == 0 || NoDocbcCost == 1",
+        "group": "medical_follow_up",
+        "advice": "Visit a government or community health centre, or a free screening camp, for affordable care."
+      },
+      {
+        "condition": "MentHlth >= 14 || PhysHlth >= 14",
+        "group": "habits",
+        "advice": "Talk to a doctor about your mental or physical health. Prioritise sleep and stress care."
+      },
+      {
+        "condition": "HeartDiseaseorAttack == 1 || Stroke == 1",
+        "group": "medical_follow_up",
+        "advice": "Keep up regular specialist follow-up for your heart or stroke care."
+      }
+    ]
+  },
+  "warning_signs": {
+    "see_doctor_soon": [
+      "Frequent urination",
+      "Excessive thirst",
+      "Unexplained weight loss",
+      "Constant hunger",
+      "Blurred vision",
+      "Tingling or numbness in hands or feet",
+      "Slow-healing cuts",
+      "Frequent infections",
+      "Unusual tiredness"
+    ],
+    "emergency_care": [
+      "Vomiting with abdominal pain",
+      "Fruity-smelling breath",
+      "Fast or deep breathing",
+      "Confusion or extreme drowsiness",
+      "Loss of consciousness"
+    ],
+    "emergency_note": "In an emergency call your local emergency number."
+  },
+  "blood_tests": {
+    "explanation": "Fasting blood glucose and HbA1c are the common tests used to check blood sugar levels. A doctor reviews the results and decides what they mean. This tool does not provide diagnostic cut-offs for self-interpretation."
+  },
+  "share_with_doctor": "Bring this report and ask for a fasting blood glucose or HbA1c test.",
+  "disclaimer": "This is an AI-based screening estimate based on survey data from US adults, not a medical diagnosis. It does not replace advice from a qualified doctor."
+}

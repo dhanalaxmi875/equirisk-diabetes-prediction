@@ -1,0 +1,32 @@
+{
+  "by_age_group": {
+    "18-34": 0.1396,
+    "35-49": 0.3249,
+    "50-64": 0.51,
+    "65+": 0.6168
+  },
+  "by_income_group": {
+    "High income": 0.3935,
+    "Low income": 0.661,
+    "Middle income": 0.5542
+  },
+  "by_sex": {
+    "Female": 0.4842,
+    "Male": 0.5251
+  },
+  "by_bmi_category": {
+    "Normal": 0.2774,
+    "Obese": 0.6547,
+    "Overweight": 0.4448,
+    "Underweight": 0.2634
+  },
+  "distribution_stats": {
+    "overall_mean_risk": 0.5029,
+    "overall_median_risk": 0.5523,
+    "tier_proportions": {
+      "low": 0.3372,
+      "moderate": 0.26,
+      "high": 0.4029
+    }
+  }
+}
