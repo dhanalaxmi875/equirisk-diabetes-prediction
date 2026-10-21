@@ -136,3 +136,24 @@ class BatchPredictResponse(BaseModel):
     errors: List[str]
     results: List[BatchPredictionRow]
     summary: Dict[str, Any]
+
+class ExtractedFieldDetail(BaseModel):
+    field: str
+    field_name: str
+    value: Optional[float] = None
+    status: str  # "auto_filled", "needs_confirmation", "not_found"
+    confidence: float
+    source_snippet: Optional[str] = None
+    explanation: str
+
+class ReportExtractionResponse(BaseModel):
+    filename: str
+    file_type: str
+    total_fields: int
+    auto_filled_count: int
+    needs_confirmation_count: int
+    not_found_count: int
+    extracted_fields: Dict[str, ExtractedFieldDetail]
+    initial_form_values: Dict[str, Optional[float]]
+    non_model_clinical_indicators: Dict[str, str]
+    raw_text_summary: str

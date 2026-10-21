@@ -5,9 +5,10 @@ from fastapi import FastAPI, HTTPException, Path, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.schemas import (
     FeatureInput, PredictResponse, ExplainResponse, FairnessResponse, PopulationInsightsResponse,
-    BatchPredictResponse
+    BatchPredictResponse, ReportExtractionResponse
 )
 from backend.app.model import EquiRiskModelManager
+from backend.app.report_parser import parse_medical_report
 
 # Define path to model artifacts
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -63,7 +64,7 @@ def root():
         "version": "2.4.0",
         "scope": "Academic population-level research tool using CDC BRFSS 2015 survey data",
         "status": "online",
-        "endpoints": ["/predict", "/explain", "/insights", "/fairness", "/metadata", "/feature-config", "/predict/batch"]
+        "endpoints": ["/predict", "/explain", "/insights", "/fairness", "/metadata", "/feature-config", "/predict/batch", "/extract-report"]
     }
 
 @app.get("/health")
@@ -144,3 +145,49 @@ def batch_predict(file: UploadFile = File(..., description="CSV file with 21 fea
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/extract-report", response_model=ReportExtractionResponse)
+async def extract_medical_report(file: UploadFile = File(..., description="Medical report in PDF, JPG, PNG, or JPEG format")):
+    """
+    Extracts text from medical reports via PDF parsing or OCR.
+    Extracts available BRFSS survey fields (Auto-filled, Needs Confirmation, or Not Found).
+    Never guesses missing values or maps unrelated lab indicators (like HbA1c) to survey features.
+    """
+    filename = file.filename or "uploaded_report"
+    ext = os.path.splitext(filename)[1].lower()
+    allowed_exts = {".pdf", ".jpg", ".jpeg", ".png"}
+    if ext not in allowed_exts:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{ext}'. Allowed formats are PDF, JPG, PNG, JPEG."
+        )
+
+    try:
+        contents = await file.read()
+        if not contents or len(contents) == 0:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty (0 bytes).")
+        
+        if len(contents) > 15 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large. Maximum size is 15 MB.")
+
+        result = parse_medical_report(contents, filename, file.content_type)
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Medical report processing failed: {str(e)}")
+
+@app.get("/sample-report/{report_name}")
+def get_sample_report(report_name: str):
+    valid_samples = {
+        "comprehensive": (os.path.join(BASE_DIR, "sample_reports", "comprehensive_patient_report.pdf"), "application/pdf"),
+        "minimal": (os.path.join(BASE_DIR, "sample_reports", "minimal_incomplete_report.pdf"), "application/pdf"),
+        "scanned": (os.path.join(BASE_DIR, "sample_reports", "scanned_clinic_note.png"), "image/png"),
+    }
+    if report_name not in valid_samples:
+        raise HTTPException(status_code=404, detail=f"Sample report '{report_name}' not found. Use: comprehensive, minimal, scanned")
+    filepath, mime = valid_samples[report_name]
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Sample report file not found on server.")
+    from fastapi.responses import FileResponse
+    return FileResponse(filepath, media_type=mime, filename=os.path.basename(filepath))
