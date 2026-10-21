@@ -104,3 +104,55 @@ export async function batchPredict(csvFile) {
     throw err;
   }
 }
+
+export async function uploadMedicalReport(file, onProgress = null) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_BASE}/extract-report`);
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          onProgress(percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const json = JSON.parse(xhr.responseText);
+          resolve(json);
+        } catch (e) {
+          reject(new Error("Invalid response format from server."));
+        }
+      } else {
+        try {
+          const errData = JSON.parse(xhr.responseText);
+          reject(new Error(errData.detail || `Upload failed with HTTP ${xhr.status}`));
+        } catch {
+          reject(new Error(`Upload failed with HTTP ${xhr.status}`));
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Network connection error while uploading medical report. Please verify backend is running on port 8000."));
+    };
+
+    xhr.send(formData);
+  });
+}
+
+export async function fetchSampleReport(reportKey) {
+  const res = await fetch(`${API_BASE}/sample-report/${reportKey}`);
+  if (!res.ok) throw new Error(`Failed to load sample report: ${res.statusText}`);
+  const blob = await res.blob();
+  const ext = reportKey === 'scanned' ? 'png' : 'pdf';
+  const mime = reportKey === 'scanned' ? 'image/png' : 'application/pdf';
+  return new File([blob], `sample_${reportKey}_report.${ext}`, { type: mime });
+}
