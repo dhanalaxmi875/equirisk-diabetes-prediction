@@ -1,0 +1,15 @@
+id,title,organisation,url,date_accessed,status,character_count
+who_diabetes_overview,Diabetes Overview and Global Health Impact,World Health Organization (WHO),https://www.who.int/health-topics/noncommunicable-diseases/diabetes,2026-10-21,ok,5403
+cdc_preventing_type2,Preventing Type 2 Diabetes Lifestyle Guidance,Centers for Disease Control and Prevention (CDC),https://www.cdc.gov/diabetes/prevention-type-2/index.html,2026-10-21,ok,2135
+cdc_diabetes_risk_factors,Type 2 Diabetes Risk Factors and Screening,Centers for Disease Control and Prevention (CDC),https://www.cdc.gov/diabetes/risk-factors/index.html,2026-10-21,ok,3474
+cdc_truth_about_prediabetes,The Truth About Prediabetes Symptoms and Reversal,Centers for Disease Control and Prevention (CDC),https://www.cdc.gov/diabetes/prevention-type-2/truth-about-prediabetes.html,2026-10-21,ok,3214
+niddk_symptoms_causes,Diabetes Symptoms Causes and Types Overview,National Institute of Diabetes and Digestive and Kidney Diseases (NIDDK),https://www.niddk.nih.gov/health-information/diabetes/overview/symptoms-causes,2026-10-21,ok,18005
+cdc_meal_planning,Diabetes Meal Planning and the Plate Method,Centers for Disease Control and Prevention (CDC),https://www.cdc.gov/diabetes/healthy-eating/diabetes-meal-planning.html,2026-10-21,ok,4819
+niddk_diet_physical_activity,Diet Eating and Physical Activity for Diabetes Management,National Institute of Diabetes and Digestive and Kidney Diseases (NIDDK),https://www.niddk.nih.gov/health-information/diabetes/overview/diet-eating-physical-activity,2026-10-21,ok,21529
+who_physical_activity,Global Recommendations on Physical Activity and Sedentary Behaviour,World Health Organization (WHO),https://www.who.int/news-room/fact-sheets/detail/physical-activity,2026-10-21,ok,10704
+niddk_preventing_problems,Preventing Diabetes Complications and Target Organ Health,National Institute of Diabetes and Digestive and Kidney Diseases (NIDDK),https://www.niddk.nih.gov/health-information/diabetes/overview/preventing-problems,2026-10-21,ok,4636
+niddk_tests_diagnosis,Diabetes Diagnostic Tests and Clinical Screening Criteria,National Institute of Diabetes and Digestive and Kidney Diseases (NIDDK),https://www.niddk.nih.gov/health-information/diabetes/overview/tests-diagnosis,2026-10-21,ok,11365
+equirisk_readme,EquiRisk System Architecture and Methodology,EquiRisk AI Research Team,https://github.com/dhanalaxmi875/equirisk-diabetes-prediction,2026-10-21,ok,8294
+equirisk_faq,EquiRisk Frequently Asked Questions (FAQ),EquiRisk AI Research Team,https://github.com/dhanalaxmi875/equirisk-diabetes-prediction,2026-10-21,ok,7350
+equirisk_glossary,EquiRisk Clinical and Machine Learning Glossary,EquiRisk AI Research Team,https://github.com/dhanalaxmi875/equirisk-diabetes-prediction,2026-10-21,ok,8063
+equirisk_limitations,"EquiRisk Limitations, Clinical Scope, and Ethical Safeguards",EquiRisk AI Research Team,https://github.com/dhanalaxmi875/equirisk-diabetes-prediction,2026-10-21,ok,6832
