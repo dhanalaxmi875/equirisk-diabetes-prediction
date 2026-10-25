@@ -30,9 +30,6 @@ export default function Navbar({ activeTab, setActiveTab }) {
             <span className="absolute inset-0 rounded-lg bg-secondary-container/20 blur-sm -z-10 group-hover:bg-secondary-container/40 transition-all"></span>
           </div>
           <span className="text-on-surface tracking-tight font-headline-sm">EquiRisk</span>
-          <span className="text-label-sm font-label-sm uppercase px-1.5 py-0.5 rounded bg-surface-container-high text-secondary-fixed-dim border border-outline-variant/50 ml-1">
-            BRFSS v2.4
-          </span>
         </button>
 
         {/* Desktop Navigation Links */}
@@ -57,6 +54,7 @@ export default function Navbar({ activeTab, setActiveTab }) {
 
         {/* Trailing Action Buttons */}
         <div className="flex items-center gap-3">
+
           <button
             onClick={() => handleNavClick('assessment')}
             className="inline-flex items-center gap-2 bg-primary-container hover:bg-inverse-primary text-on-primary-container px-4 py-2 rounded-xl text-label-md font-label-md font-semibold transition-all duration-200 active:scale-[0.98] electric-glow border-t border-white/20"

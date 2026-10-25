@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getFairnessAudit } from '../services/api';
-import { Scale, AlertTriangle, CheckCircle, Info, ShieldCheck, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Scale, AlertTriangle, CheckCircle, Info, ShieldCheck, ChevronRight, ArrowLeft, RotateCcw } from 'lucide-react';
 
 export default function ModelTransparencyPage({ setActiveTab }) {
   const [fairness, setFairness] = useState(null);
@@ -8,20 +8,21 @@ export default function ModelTransparencyPage({ setActiveTab }) {
   const [error, setError] = useState(null);
   const [activeCategory, setActiveCategory] = useState('age');
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await getFairnessAudit();
-        setFairness(res);
-      } catch (err) {
-        console.warn("Failed to load fairness audit:", err);
-        setError('Unable to load model transparency data. Please ensure the backend service is running.');
-      } finally {
-        setLoading(false);
-      }
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getFairnessAudit();
+      setFairness(res);
+    } catch (err) {
+      console.warn("Failed to load fairness audit:", err);
+      setError('We could not load model transparency data. Check your connection and retry.');
+    } finally {
+      setLoading(false);
     }
-    loadData();
-  }, []);
+  };
+
+  useEffect(() => { loadData(); }, []);
 
   const data = fairness;
 
@@ -44,6 +45,9 @@ export default function ModelTransparencyPage({ setActiveTab }) {
           <p className="text-body-md text-on-surface-variant mt-1">
             For researchers: Detailed model metrics, ROC-AUC, recall, and fairness auditing across demographic subgroups.
           </p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-on-surface-variant">
+            This model is intended for academic population-health research and epidemiological stratification. It draws on the CDC BRFSS 2015 survey cohort of 70,692 respondents and is not a diagnostic device or clinical record replacement.
+          </p>
         </div>
 
         <button
@@ -58,14 +62,16 @@ export default function ModelTransparencyPage({ setActiveTab }) {
       {error && (
         <div className="p-4 rounded-xl bg-error-container/30 border border-error text-error flex items-start gap-3">
           <AlertTriangle size={20} className="shrink-0 mt-0.5" />
-          <span>{error}</span>
+          <div className="flex-1"><p>{error}</p><button type="button" onClick={loadData} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold underline underline-offset-2"><RotateCcw size={14} /> Retry</button></div>
         </div>
       )}
 
       {loading ? (
-        <div className="py-16 flex flex-col items-center justify-center gap-3 text-on-surface-variant">
-          <div className="w-8 h-8 rounded-full border-2 border-secondary-container border-t-transparent animate-spin" />
-          <span className="text-body-sm">Loading model transparency data...</span>
+        <div role="status" className="space-y-4 rounded-2xl border border-outline-variant/30 bg-surface-container/50 p-6 animate-pulse">
+          <span className="sr-only">Loading model transparency data...</span>
+          <div className="h-5 w-1/3 rounded bg-surface-variant" />
+          <div className="h-4 w-2/3 rounded bg-surface-variant" />
+          <div className="h-48 rounded-xl bg-surface-variant/70" />
         </div>
       ) : data ? (
         <>

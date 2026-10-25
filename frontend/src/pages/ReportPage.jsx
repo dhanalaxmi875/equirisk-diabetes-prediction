@@ -362,6 +362,11 @@ ${precautionData?.disclaimer}
         </div>
       </div>
 
+      {explanationError && <div role="alert" className="flex items-start gap-3 rounded-xl border border-error bg-error-container/30 p-4 text-error print:hidden">
+        <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+        <div className="flex-1"><p>{explanationError}</p><button type="button" onClick={loadExplanation} disabled={loadingExplanation} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold underline underline-offset-2 disabled:opacity-50"><RotateCcw size={14} /> Retry</button></div>
+      </div>}
+
       {/* Header - Print */}
       <div className="hidden print:block text-center border-b-2 border-black pb-4 mb-6">
         <h1 className="text-2xl font-bold text-black">Personalized Health Report</h1>

@@ -1,18 +1,26 @@
 import os
 import io
+from pathlib import Path as PathLib
+from dotenv import load_dotenv
+
+# Load environment variables from .env if present
+load_dotenv()
+
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Path, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.schemas import (
     FeatureInput, PredictResponse, ExplainResponse, FairnessResponse, PopulationInsightsResponse,
-    BatchPredictResponse, ReportExtractionResponse
+    BatchPredictResponse, ReportExtractionResponse, ChatRequest, ChatResponse
 )
 from backend.app.model import EquiRiskModelManager
 from backend.app.report_parser import parse_medical_report
+from backend.app.chat_service import ChatService, resolve_chroma_path
 
 # Define path to model artifacts
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARTIFACT_DIR = os.path.join(BASE_DIR, "model_artifacts")
+VECTOR_DB_PATH = resolve_chroma_path(PathLib(os.path.join(BASE_DIR, "vector_db")))
 
 app = FastAPI(
     title="EquiRisk API",
@@ -31,6 +39,12 @@ app.add_middleware(
 
 # Instantiate model manager
 manager = EquiRiskModelManager(ARTIFACT_DIR)
+
+# Instantiate chat service
+chat_service = ChatService(
+    chroma_path=VECTOR_DB_PATH,
+    llm_provider=os.getenv('LLM_PROVIDER', 'gemini')
+)
 
 # Sample personas for instant demonstration
 PRESET_PERSONAS = {
@@ -65,15 +79,6 @@ def root():
         "scope": "Academic population-level research tool using CDC BRFSS 2015 survey data",
         "status": "online",
         "endpoints": ["/predict", "/explain", "/insights", "/fairness", "/metadata", "/feature-config", "/predict/batch", "/extract-report"]
-    }
-
-@app.get("/health")
-def health():
-    return {
-        "status": "healthy",
-        "artifacts_loaded": manager.loaded,
-        "model_name": manager.metadata.get("model_name"),
-        "features_count": len(manager.features)
     }
 
 @app.get("/metadata")
@@ -191,3 +196,89 @@ def get_sample_report(report_name: str):
         raise HTTPException(status_code=404, detail="Sample report file not found on server.")
     from fastapi.responses import FileResponse
     return FileResponse(filepath, media_type=mime, filename=os.path.basename(filepath))
+
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint with Gemini status and vector DB info.
+    """
+    gemini_key = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
+    gemini_configured = bool(gemini_key)
+    gemini_reachable = False
+    if gemini_configured:
+        try:
+            from backend.app.gemini_utils import probe_gemini
+            probe = probe_gemini(gemini_key, os.getenv('GEMINI_MODEL'))
+            gemini_reachable = bool(probe.get('succeeded'))
+        except Exception as e:
+            from backend.app.gemini_utils import redact_api_key
+            print(f"[Health] Gemini reachability check failed: {redact_api_key(str(e), gemini_key)}")
+            gemini_reachable = False
+
+    try:
+        vector_db_chunks = int(chat_service.collection.count()) if chat_service.collection is not None else 0
+    except Exception as e:
+        print(f"[Health] Vector database count failed: {e}")
+        vector_db_chunks = 0
+    
+    return {
+        "gemini_configured": gemini_configured,
+        "gemini_reachable": gemini_reachable,
+        "vector_db_chunks": vector_db_chunks,
+        "embedding_model": "BAAI/bge-small-en-v1.5",
+        "version": "2.4.0"
+    }
+
+@app.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
+async def chat(request: ChatRequest):
+    """
+    RAG chatbot endpoint for answering diabetes-related health questions.
+    Retrieves relevant context from knowledge base, checks safety, and generates responses.
+    """
+    debug_mode = os.getenv('DEBUG_CHAT') == '1'
+    
+    try:
+        # Convert conversation history to dict format
+        history = None
+        if request.conversation_history:
+            history = [{"role": msg.role, "content": msg.content} for msg in request.conversation_history]
+        
+        # Call chat service with debug flag
+        result = chat_service.chat(
+            query=request.query,
+            conversation_history=history,
+            k=request.k,
+            source_type=request.source_type,
+            min_score=request.min_score,
+            debug=debug_mode
+        )
+        
+        return ChatResponse(**result)
+    except Exception as e:
+        message = str(e)
+        secret = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
+        if secret:
+            message = message.replace(secret, '[REDACTED]')
+        raise HTTPException(status_code=500, detail=f"Chat processing failed: {message}")
+
+
+@app.post("/chat/ablation")
+async def chat_context_ablation(request: ChatRequest):
+    """Debug-only grounding check: ask the configured generator with an empty context."""
+    if os.getenv('DEBUG_CHAT') != '1':
+        raise HTTPException(status_code=404, detail="Not found")
+    if not chat_service.gemini_key:
+        raise HTTPException(status_code=503, detail="Gemini is not configured")
+    prompt = f"CONTEXT:\n\nUSER QUESTION: {request.query.strip()}\n\nAnswer:"
+    try:
+        answer = chat_service.call_configured_llm(prompt, 'gemini', chat_service.gemini_key)
+        return {
+            'answer': answer or '',
+            'provider': 'gemini',
+            'model': chat_service.last_llm_metadata.get('model'),
+            'tokens': chat_service.last_llm_metadata.get('tokens'),
+            'empty_context': True,
+        }
+    except Exception as e:
+        message = str(e).replace(chat_service.gemini_key, '[REDACTED]') if chat_service.gemini_key else str(e)
+        raise HTTPException(status_code=502, detail=f"Gemini ablation call failed: {message}")

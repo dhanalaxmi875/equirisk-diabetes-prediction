@@ -157,3 +157,35 @@ class ReportExtractionResponse(BaseModel):
     initial_form_values: Dict[str, Optional[float]]
     non_model_clinical_indicators: Dict[str, str]
     raw_text_summary: str
+
+# Chat schemas
+class ChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+class ChatRequest(BaseModel):
+    query: str
+    conversation_history: Optional[List[ChatMessage]] = None
+    k: int = Field(default=4, ge=1, le=10, description="Number of sources to retrieve")
+    source_type: Optional[str] = Field(default=None, description="Filter by source_type: 'external' or 'equirisk'")
+    min_score: float = Field(default=0.45, ge=0.0, le=1.0, description="Minimum similarity score")
+
+class ChatSource(BaseModel):
+    title: str
+    organisation: str
+    url: str
+    source_url: Optional[str] = None
+    section: str
+    score: float
+
+class ChatResponse(BaseModel):
+    answer: str
+    sources: List[ChatSource]
+    safe: bool
+    category: str
+    llm_used: Optional[bool] = False
+    llm_provider: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    tokens: Optional[Dict[str, Any]] = None
+    debug_trace: Optional[Dict[str, Any]] = None

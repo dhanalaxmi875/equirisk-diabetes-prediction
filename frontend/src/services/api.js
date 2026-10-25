@@ -156,3 +156,33 @@ export async function fetchSampleReport(reportKey) {
   const mime = reportKey === 'scanned' ? 'image/png' : 'application/pdf';
   return new File([blob], `sample_${reportKey}_report.${ext}`, { type: mime });
 }
+
+export async function sendChatMessage(query, conversationHistory = [], k = 4, minScore = 0.38) {
+  try {
+    const sanitizedHistory = (conversationHistory || []).map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content || ''
+    }));
+
+    const res = await fetch(`${API_BASE}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        conversation_history: sanitizedHistory,
+        k,
+        min_score: minScore
+      })
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => null);
+      throw new Error(errData?.detail || `HTTP error ${res.status}`);
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.warn("API call /chat failed:", err);
+    throw err;
+  }
+}

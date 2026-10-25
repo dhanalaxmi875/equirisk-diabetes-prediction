@@ -39,7 +39,11 @@ class EquiRiskModelManager:
         self.final_model = joblib.load(os.path.join(self.artifact_dir, "model_lightgbm_final.joblib"))
         self.calibrated_model = joblib.load(os.path.join(self.artifact_dir, "model_lightgbm_calibrated.joblib"))
         self.mapie_model = joblib.load(os.path.join(self.artifact_dir, "mapie_model.joblib"))
-        self.shap_explainer = joblib.load(os.path.join(self.artifact_dir, "shap_explainer.joblib"))
+        try:
+            self.shap_explainer = joblib.load(os.path.join(self.artifact_dir, "shap_explainer.joblib"))
+        except Exception:
+            import shap
+            self.shap_explainer = shap.TreeExplainer(self.final_model)
 
         self.loaded = True
         print("EquiRisk artifacts successfully loaded into memory.")

@@ -751,7 +751,7 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
       {error && (
         <div className="p-4 rounded-xl bg-error-container/30 border border-error text-error flex items-start gap-3">
           <AlertCircle size={20} className="shrink-0 mt-0.5" />
-          <span>{error}</span>
+          <div className="flex-1"><p>{error}</p>{error.startsWith('Failed to obtain prediction') && <button type="button" onClick={() => handleSubmit({ preventDefault() {} })} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold underline underline-offset-2"><RotateCcw size={14} /> Retry prediction</button>}</div>
         </div>
       )}
 

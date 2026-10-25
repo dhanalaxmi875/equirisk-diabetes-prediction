@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { batchPredict } from '../services/api';
-import { Upload, Download, AlertTriangle, CheckCircle, FileText, ArrowLeft } from 'lucide-react';
+import { Upload, Download, AlertTriangle, CheckCircle, FileText, ArrowLeft, RotateCcw } from 'lucide-react';
 
 export default function BatchAnalysisPage({ setActiveTab }) {
   const [file, setFile] = useState(null);
@@ -161,7 +161,7 @@ export default function BatchAnalysisPage({ setActiveTab }) {
           {error && (
             <div className="p-4 rounded-xl bg-error-container/30 border border-error text-error flex items-start gap-3">
               <AlertTriangle size={20} className="shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <div className="flex-1"><p>{error}</p>{file && <button type="button" onClick={handleUpload} disabled={loading} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold underline underline-offset-2 disabled:opacity-50"><RotateCcw size={14} /> Retry</button>}</div>
             </div>
           )}
 

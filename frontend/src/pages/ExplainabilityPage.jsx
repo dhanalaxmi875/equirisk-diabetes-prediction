@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getExplanation } from '../services/api';
-import { HelpCircle, CheckCircle, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { HelpCircle, CheckCircle, AlertTriangle, ArrowLeft, RotateCcw } from 'lucide-react';
 
 export default function ExplainabilityPage({ currentFeatures, predictionId, setActiveTab }) {
   const [data, setData] = useState(null);
@@ -65,7 +65,7 @@ export default function ExplainabilityPage({ currentFeatures, predictionId, setA
       {error && (
         <div className="p-4 rounded-xl bg-error-container/30 border border-error text-error flex items-start gap-3">
           <AlertTriangle size={20} className="shrink-0 mt-0.5" />
-          <span>{error}</span>
+          <div className="flex-1"><p>{error}</p><button type="button" onClick={fetchExplain} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold underline underline-offset-2"><RotateCcw size={14} /> Retry</button></div>
         </div>
       )}
 

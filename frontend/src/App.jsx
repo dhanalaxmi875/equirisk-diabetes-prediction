@@ -10,6 +10,7 @@ import ModelTransparencyPage from './pages/ModelTransparencyPage';
 import BatchAnalysisPage from './pages/BatchAnalysisPage';
 import ReportPage from './pages/ReportPage';
 import DisclaimerPage from './pages/DisclaimerPage';
+import ChatPage from './pages/ChatPage';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('landing');
@@ -35,7 +36,7 @@ export default function App() {
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 z-10">
+      <main className="page-transition flex-1 w-full max-w-[1920px] min-w-0 mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 z-10">
         {activeTab === 'landing' && (
           <LandingPage setActiveTab={setActiveTab} />
         )}
@@ -90,10 +91,12 @@ export default function App() {
         {activeTab === 'disclaimer' && (
           <DisclaimerPage />
         )}
+
       </main>
 
       {/* Shared Footer */}
       <Footer setActiveTab={setActiveTab} />
+      <ChatPage latestPrediction={latestPrediction} />
     </div>
   );
 }

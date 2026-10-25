@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getPopulationInsights } from '../services/api';
-import { BarChart3, TrendingUp, Users, DollarSign, Activity, Layers, AlertTriangle } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, DollarSign, Activity, Layers, AlertTriangle, RotateCcw } from 'lucide-react';
 
 export default function InsightsPage() {
   const [insights, setInsights] = useState(null);
@@ -8,20 +8,21 @@ export default function InsightsPage() {
   const [error, setError] = useState(null);
   const [activeCategory, setActiveCategory] = useState('age');
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await getPopulationInsights();
-        setInsights(res);
-      } catch (err) {
-        console.warn("Failed to load population insights:", err);
-        setError('Unable to load insights. Please ensure the backend service is running.');
-      } finally {
-        setLoading(false);
-      }
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getPopulationInsights();
+      setInsights(res);
+    } catch (err) {
+      console.warn("Failed to load population insights:", err);
+      setError('We could not load population insights. Check your connection and retry.');
+    } finally {
+      setLoading(false);
     }
-    loadData();
-  }, []);
+  };
+
+  useEffect(() => { loadData(); }, []);
 
   const data = insights;
 
@@ -90,7 +91,7 @@ export default function InsightsPage() {
       {error && (
         <div className="p-4 rounded-xl bg-error-container/30 border border-error text-error flex items-start gap-3">
           <AlertTriangle size={20} className="shrink-0 mt-0.5" />
-          <span>{error}</span>
+          <div className="flex-1"><p>{error}</p><button type="button" onClick={loadData} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold underline underline-offset-2"><RotateCcw size={14} /> Retry</button></div>
         </div>
       )}
 
@@ -121,9 +122,11 @@ export default function InsightsPage() {
       </div>
 
       {loading ? (
-        <div className="py-16 flex flex-col items-center justify-center gap-3 text-on-surface-variant">
-          <div className="w-8 h-8 rounded-full border-2 border-secondary-container border-t-transparent animate-spin" />
-          <span className="text-body-sm">Loading insights...</span>
+        <div role="status" className="space-y-4 rounded-2xl border border-outline-variant/30 bg-surface-container/50 p-6 animate-pulse">
+          <span className="sr-only">Loading insights...</span>
+          <div className="h-5 w-1/3 rounded bg-surface-variant" />
+          <div className="h-4 w-2/3 rounded bg-surface-variant" />
+          <div className="h-48 rounded-xl bg-surface-variant/70" />
         </div>
       ) : data ? (
         <>

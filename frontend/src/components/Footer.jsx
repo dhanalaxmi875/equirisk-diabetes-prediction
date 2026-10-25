@@ -9,12 +9,9 @@ export default function Footer({ setActiveTab }) {
           <div className="text-headline-sm font-headline-sm font-bold text-on-surface flex items-center justify-center md:justify-start gap-2">
             <span className="material-symbols-outlined text-secondary-container fill-1">shield_with_heart</span>
             <span>EquiRisk</span>
-            <span className="text-label-sm font-label-sm px-2 py-0.5 rounded bg-surface-container text-outline border border-outline-variant/40">
-              CDC BRFSS Research
-            </span>
           </div>
           <p className="text-body-sm font-body-sm text-on-surface-variant/80">
-            For academic population health research and epidemiological stratification only. Grounded in the CDC Behavioral Risk Factor Surveillance System (BRFSS 2015) cohort of 70,692 respondents. Not a direct medical diagnostic device or clinical EMR replacement.
+            General health information, not medical advice.
           </p>
         </div>
 
