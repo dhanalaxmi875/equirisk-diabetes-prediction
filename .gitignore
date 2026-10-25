@@ -1,0 +1,50 @@
+# Environment variables with secrets
+.env
+backend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+.venv-rag/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vector database
+vector_db/
+backend/vector_db/
+
+# Model artifacts (large files)
+model_artifacts/
+backend/model_artifacts/
+
+# Test data
+*.csv
+chat_test_results.json
+retrieval_eval_results.csv
+sources_*.csv
+
+# Knowledge base
+knowledge_base/
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+*.ipynb
