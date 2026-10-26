@@ -156,6 +156,105 @@ def extract_text_from_file(file_bytes: bytes, filename: str, content_type: str) 
         raise ValueError(f"Unsupported file format '{filename}'. Please upload a PDF, JPG, PNG, or JPEG file.")
 
 
+def _normalize_tabular_text(raw_text: str) -> str:
+    """
+    Pre-process raw text from tabular/split-line lab reports (common in Indian/Asian
+    diagnostic labs) where labels and values appear on separate consecutive lines.
+    Converts patterns like:
+        'Age / Sex'           -> added as inline label for next line processing
+        '47 years / Male'     -> 'Age: 47 years Sex: Male'
+        'Height'              -> joined with next numeric line
+        '168 cm'              -> 'Height: 168 cm'
+    Also reconstructs inline Blood Pressure from adjacent lines e.g.:
+        'Blood Pressure'  /  '142/92'  /  'mmHg'  ->  'Blood Pressure: 142/92 mmHg'
+    """
+    lines = raw_text.splitlines()
+    processed = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+
+        # Handle combined Age/Sex cell: next line is "47 years / Male" or "58 Female"
+        if re.match(r'(?i)^Age\s*/\s*Sex$', line):
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                # Pattern: "47 years / Male" or "47 / Male" or "58 Female"
+                m = re.match(
+                    r'(?i)(\d{1,3})\s*(?:years?|yrs?)?\s*/\s*(Male|Female|M|F)$',
+                    next_line
+                )
+                if m:
+                    processed.append(f"Age: {m.group(1)} years")
+                    processed.append(f"Sex: {m.group(2)}")
+                    i += 2
+                    continue
+
+        # Handle standalone Height/Weight labels followed by value on next line
+        if re.match(r'(?i)^(Height|Ht)$', line) and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            if re.match(r'^\d+(?:\.\d+)?\s*(?:cm|m|ft|in)?$', next_line, re.IGNORECASE):
+                processed.append(f"Height: {next_line}")
+                i += 2
+                continue
+
+        if re.match(r'(?i)^(Weight|Wt)$', line) and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            if re.match(r'^\d+(?:\.\d+)?\s*(?:kg|lbs?)?$', next_line, re.IGNORECASE):
+                processed.append(f"Weight: {next_line}")
+                i += 2
+                continue
+
+        # Handle split-line Blood Pressure: "Blood Pressure" / "142/92" / "mmHg"
+        if re.match(r'(?i)^(?:Blood\s*Pressure|BP|B\.P\.)$', line) and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            if re.match(r'^\d{2,3}/\d{2,3}$', next_line):
+                unit = ""
+                if i + 2 < len(lines) and re.match(r'(?i)^mmhg$', lines[i + 2].strip()):
+                    unit = " mmHg"
+                    i += 1
+                processed.append(f"Blood Pressure: {next_line}{unit}")
+                i += 2
+                continue
+
+        # Handle split-line cholesterol / lab values:
+        # "Total Cholesterol" / "238" / "mg/dL" -> "Total Cholesterol: 238 mg/dL"
+        LAB_LABEL_PATTERNS = [
+            r'(?i)^(Total\s*Cholesterol|Cholesterol[,\s]+Total|Serum\s*Cholesterol)$',
+            r'(?i)^(LDL(?:\s*Cholesterol)?)$',
+            r'(?i)^(HDL(?:\s*Cholesterol)?)$',
+            r'(?i)^(Triglycerides?)$',
+            r'(?i)^(Fasting\s*(?:Blood\s*)?Glucose|FBG|Fasting\s*Sugar|Blood\s*Glucose)$',
+            r'(?i)^(HbA1c|Hemoglobin\s*A1c|A1C)$',
+            r'(?i)^(Serum\s*Creatinine|Creatinine)$',
+            r'(?i)^(eGFR|Estimated\s*GFR)$',
+        ]
+        matched_label = None
+        for pat in LAB_LABEL_PATTERNS:
+            m = re.match(pat, line)
+            if m:
+                matched_label = line
+                break
+
+        if matched_label and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            # Value is a number (possibly with decimal)
+            if re.match(r'^[><]?\s*\d+(?:\.\d+)?$', next_line):
+                unit = ""
+                if i + 2 < len(lines):
+                    unit_line = lines[i + 2].strip()
+                    if re.match(r'(?i)^(mg/dl|mmol/l|%|u/l|g/dl|meq/l|ml/min.*)?$', unit_line):
+                        unit = f" {unit_line}"
+                        i += 1
+                processed.append(f"{matched_label}: {next_line}{unit}")
+                i += 2
+                continue
+
+        processed.append(line)
+        i += 1
+
+    return "\n".join(processed)
+
+
 def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, str]]:
     """
     Parse clinical report text into:
@@ -163,6 +262,8 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
       2. Non-model clinical lab indicators (e.g. HbA1c, Fasting Glucose, eGFR) for patient awareness.
     NEVER guesses missing values. NEVER maps unrelated clinical labs (like HbA1c) to BRFSS features.
     """
+    # Normalize split-line/tabular formats before regex extraction
+    raw_text = _normalize_tabular_text(raw_text)
     results: Dict[str, Any] = {}
     non_model_labs: Dict[str, str] = {}
     lines = raw_text.splitlines()
@@ -171,22 +272,67 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
         """
         Check lines containing medical patterns for positive vs negative affirmation.
         Returns (value, status, snippet) or None if not found.
+        Uses proximity-aware negation to avoid false matches.
         """
+        # Words that negate a diagnosis. Note: "none" is checked carefully
+        # to avoid false matches when it appears as an unrelated word.
+        NEGATION_PHRASES = [
+            r'(?i)\bnone\b', r'(?i)\bnegative\b', r'(?i)\bdenies\b',
+            r'(?i)\bdenied\b', r'(?i)\babsent\b', r'(?i)\bnever\b',
+            r'(?i)\bwithout\b', r'(?i)\bno\s+(?:prior|history|known|evidence)\b',
+            # OCR-tolerant variants (e.g. winocr often garbles "Denies" -> "Cenies")
+            r'(?i)\b[cd]enies\b', r'(?i)\b[cd]enied\b',
+        ]
+        AFFIRMATION_PHRASES = [
+            r'(?i)\b(?:yes|positive|present|diagnosed|active|confirmed)\b',
+            r'(?i)\bhistory\s+of\b',
+            r'(?i)\bdiagnosed\s+(?:with|in|since)\b',
+            r'(?i)\b(?:elevated|stage\s*[12]|uncontrolled)\b',
+        ]
+
+        candidate_needs_conf = None
         for line in lines:
             line_str = line.strip()
+            if not line_str:
+                continue
             for pat in patterns:
                 if re.search(r'(?i)\b' + pat + r'\b', line_str):
-                    # Check for explicit negation on the same line or in phrase
-                    if re.search(r'(?i)\b(none|negative|denies|denied|no|absent|never|without|0)\b', line_str):
+                    line_lower = line_str.lower()
+
+                    # Check for explicit negation context
+                    is_negated = False
+                    for neg_pat in NEGATION_PHRASES:
+                        if re.search(neg_pat, line_str):
+                            is_negated = True
+                            break
+                    # Also catch phrased negations
+                    if not is_negated:
+                        for phrase in ["negative for", "no history of", "no prior", "no known",
+                                       "not found", "ruled out", "absent"]:
+                            if phrase in line_lower:
+                                is_negated = True
+                                break
+
+                    if is_negated:
                         return (0.0, "auto_filled", line_str)
-                    # Check for explicit affirmation
-                    if re.search(r'(?i)\b(yes|positive|present|diagnosed|active|confirmed|1)\b', line_str):
+
+                    # Check for explicit affirmation context
+                    is_affirmed = False
+                    for aff_pat in AFFIRMATION_PHRASES:
+                        if re.search(aff_pat, line_str):
+                            is_affirmed = True
+                            break
+
+                    if is_affirmed:
                         return (1.0, "auto_filled", line_str)
-                    if "negative for" in line_str.lower() or "no history of" in line_str.lower():
-                        return (0.0, "auto_filled", line_str)
-                    if "history of" in line_str.lower() or "diagnosed with" in line_str.lower():
-                        return (1.0, "auto_filled", line_str)
-                    return (1.0, "needs_confirmation", line_str)
+
+                    # Pattern keyword found but no clear affirmation/negation yet
+                    if candidate_needs_conf is None:
+                        candidate_needs_conf = (1.0, "needs_confirmation", line_str)
+                    break
+
+        if candidate_needs_conf is not None:
+            return candidate_needs_conf
         return None
 
     # -------------------------------------------------------------
@@ -235,45 +381,58 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
     # -------------------------------------------------------------
 
     # 1. HighBP (High Blood Pressure)
-    bp_match = re.search(r'(?i)(?:BP|Blood\s*Pressure|B\.P\.)?\s*[:=-]?\s*(\d{2,3})\s*[/xX]\s*(\d{2,3})\s*(?:mm[Hh]g)?', raw_text)
+    # OCR-tolerant BP pattern: handles garbled separators like "14492" or normal "142/90"
+    bp_match = re.search(r'(?i)(?:BP|Blood\s*Pressure|B\.P\.)\s*[:=-]?\s*(\d{2,3})\s*[/xX]\s*(\d{2,3})\s*(?:mm[Hh]g)?', raw_text)
+    if not bp_match:
+        # OCR fallback: "gp 14492" -> systolic/diastolic when 3+2 digits are fused
+        bp_ocr = re.search(r'(?i)(?:[bg]p|blood\s*pressure)\s*[:=-]?\s*(\d{3})(\d{2})\s*(?:mm[Hh]g)?', raw_text)
+        if bp_ocr:
+            s, d = int(bp_ocr.group(1)), int(bp_ocr.group(2))
+            if 80 <= s <= 250 and 40 <= d <= 150:
+                bp_match = bp_ocr
     bp_diag = check_history_item(["hypertension", "htn", "high blood pressure", "essential hypertension"])
 
     if bp_diag:
         val, stat, snip = bp_diag
+        # Append BP reading if we also have a numeric reading
+        bp_extra = ""
+        if bp_match:
+            s_val, d_val = int(bp_match.group(1)), int(bp_match.group(2))
+            bp_extra = f" (BP reading: {s_val}/{d_val} mmHg)"
         results["HighBP"] = {
             "value": val,
             "status": stat,
             "confidence": 0.95,
-            "source_snippet": snip,
-            "explanation": "Explicit absence of hypertension documented." if val == 0.0 else f"Clinical diagnosis '{snip}' noted in history."
+            "source_snippet": snip + bp_extra,
+            "explanation": "Explicit absence of hypertension documented." if val == 0.0 else f"Clinical diagnosis '{snip}' noted in history.{bp_extra}"
         }
     elif bp_match:
-        sys = int(bp_match.group(1))
-        dia = int(bp_match.group(2))
-        if 80 <= sys <= 250 and 40 <= dia <= 150:
-            if sys >= 140 or dia >= 90:
+        sys_v = int(bp_match.group(1))
+        dia_v = int(bp_match.group(2))
+        if 80 <= sys_v <= 250 and 40 <= dia_v <= 150:
+            if sys_v >= 140 or dia_v >= 90:
                 results["HighBP"] = {
                     "value": 1.0,
                     "status": "auto_filled",
                     "confidence": 0.90,
-                    "source_snippet": f"Recorded BP: {sys}/{dia} mmHg",
-                    "explanation": f"Blood pressure reading {sys}/{dia} mmHg meets Stage 2 Hypertension threshold (>=140/90)."
+                    "source_snippet": f"Recorded BP: {sys_v}/{dia_v} mmHg",
+                    "explanation": f"Blood pressure reading {sys_v}/{dia_v} mmHg meets Stage 2 Hypertension threshold (>=140/90)."
                 }
-            elif sys >= 130 or dia >= 80:
+            elif sys_v >= 130 or dia_v >= 80:
                 results["HighBP"] = {
                     "value": 1.0,
                     "status": "needs_confirmation",
                     "confidence": 0.75,
-                    "source_snippet": f"Recorded BP: {sys}/{dia} mmHg",
-                    "explanation": f"Blood pressure reading {sys}/{dia} mmHg indicates Stage 1 elevated BP. Please confirm if medically diagnosed with hypertension."
+                    "source_snippet": f"Recorded BP: {sys_v}/{dia_v} mmHg",
+                    "explanation": f"Blood pressure reading {sys_v}/{dia_v} mmHg indicates Stage 1 elevated BP. Please confirm if medically diagnosed with hypertension."
                 }
             else:
                 results["HighBP"] = {
                     "value": 0.0,
                     "status": "auto_filled",
                     "confidence": 0.90,
-                    "source_snippet": f"Recorded BP: {sys}/{dia} mmHg",
-                    "explanation": f"Blood pressure reading {sys}/{dia} mmHg is within normal reference limits (<120/80)."
+                    "source_snippet": f"Recorded BP: {sys_v}/{dia_v} mmHg",
+                    "explanation": f"Blood pressure reading {sys_v}/{dia_v} mmHg is within normal reference limits (<120/80)."
                 }
     if "HighBP" not in results:
         results["HighBP"] = {
@@ -344,7 +503,20 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
         }
 
     # 3. CholCheck (Cholesterol check in past 5 years)
-    if chol_match or ldl_match or tg_match or hdl_match or re.search(r'(?i)\b(lipid\s*panel|lipid\s*profile|cholesterol\s*screening)\b', raw_text):
+    # Only confirm if actual numeric lab values exist, or an unambiguously positive
+    # lipid panel mention.  Negated phrases like "No lipid profile" must NOT trigger.
+    has_lipid_values = bool(chol_match or ldl_match or tg_match or hdl_match)
+    lipid_text_match = re.search(r'(?i)\b(lipid\s*panel|lipid\s*profile|cholesterol\s*screening)\b', raw_text)
+    lipid_negated = False
+    if lipid_text_match and not has_lipid_values:
+        # Check surrounding context for negation ("no lipid profile", "not done")
+        span_start = max(0, lipid_text_match.start() - 40)
+        span_end = min(len(raw_text), lipid_text_match.end() + 40)
+        context = raw_text[span_start:span_end].lower()
+        if re.search(r'(?:no|not|without|none|absent|unavailable|pending)\s+(?:laboratory\s+)?(?:lipid|cholesterol)', context):
+            lipid_negated = True
+
+    if has_lipid_values or (lipid_text_match and not lipid_negated):
         results["CholCheck"] = {
             "value": 1.0,
             "status": "auto_filled",
@@ -362,19 +534,38 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
         }
 
     # 4. BMI (Body Mass Index)
-    bmi_match = re.search(r'(?i)\b(?:BMI|Body\s*Mass\s*Index)\s*[:=-]?\s*(\d{1,2}(?:\.\d+)?)\s*(?:kg/m[²2])?\b', raw_text)
-    ht_match = re.search(r'(?i)\b(?:Height|Ht)\s*[:=-]?\s*(\d{2,3}(?:\.\d+)?)\s*(cm|m|in(?:ches)?|ft)?\b', raw_text)
-    wt_match = re.search(r'(?i)\b(?:Weight|Wt)\s*[:=-]?\s*(\d{2,3}(?:\.\d+)?)\s*(kg|lbs?|pounds?)?\b', raw_text)
+    # Removed trailing \b — it breaks on "29.0 kg/m2 (Overweight)" because \b fails
+    # between digit and space before "("  or after unit text with special chars.
+    # Also handle OCR garbled "gMl: 318" -> "BMI: 31.8" via fallback.
+    bmi_match = re.search(r'(?i)\b(?:BMI|Body\s*Mass\s*Index)(?:\s*\([A-Za-z\s]+\))?\s*[:=-]?\s*(\d{1,2}(?:\.\d+)?)\s*(?:kg/m[²2])?', raw_text)
+    if not bmi_match:
+        # OCR fallback: "gMl" = garbled "BMI", "318" = "31.8" (missing decimal)
+        bmi_ocr = re.search(r'(?i)(?:gMl|bMl|BMl|gMI)\s*[:=-]?\s*(\d{2,3})(?:\.\d+)?\s*(?:kg[/\\]m[²2])?', raw_text)
+        if bmi_ocr:
+            raw_bmi = bmi_ocr.group(1)
+            # If 3 digits without decimal, insert decimal before last digit (e.g. 318 -> 31.8)
+            if len(raw_bmi) == 3:
+                candidate = float(raw_bmi[:2] + '.' + raw_bmi[2:])
+                if 12.0 <= candidate <= 98.0:
+                    bmi_match = bmi_ocr  # use it; we'll parse the value manually below
+    ht_match = re.search(r'(?i)\b(?:Height|Ht)\s*[:=-]?\s*(\d{2,3}(?:\.\d+)?)\s*(cm|m|in(?:ches)?|ft)?', raw_text)
+    wt_match = re.search(r'(?i)\b(?:Weight|Wt)\s*[:=-]?\s*(\d{2,3}(?:\.\d+)?)\s*(kg|lbs?|pounds?)?', raw_text)
 
     if bmi_match:
-        bmi_val = float(bmi_match.group(1))
+        raw_bmi_str = bmi_match.group(1)
+        # Handle OCR: 3-digit BMI without decimal (e.g. "318" -> 31.8)
+        if '.' not in raw_bmi_str and len(raw_bmi_str) == 3:
+            bmi_val = float(raw_bmi_str[:2] + '.' + raw_bmi_str[2:])
+        else:
+            bmi_val = float(raw_bmi_str)
         if 12.0 <= bmi_val <= 98.0:
+            is_ocr = bool(re.match(r'(?i)(?:gMl|bMl|BMl|gMI)', bmi_match.group(0)))
             results["BMI"] = {
                 "value": round(bmi_val, 1),
-                "status": "auto_filled",
-                "confidence": 0.98,
+                "status": "needs_confirmation" if is_ocr else "auto_filled",
+                "confidence": 0.75 if is_ocr else 0.98,
                 "source_snippet": bmi_match.group(0).strip(),
-                "explanation": f"BMI explicitly documented as {bmi_val:.1f} kg/m2."
+                "explanation": f"BMI {'(OCR-extracted) ' if is_ocr else ''}explicitly documented as {bmi_val:.1f} kg/m2."
             }
     if "BMI" not in results and ht_match and wt_match:
         try:
@@ -418,9 +609,19 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
         }
 
     # 5. Smoker (Smoked >= 100 cigarettes)
-    smk_current = re.search(r'(?i)\b(?:Smoking|Tobacco(?:\s*Use)?|Smoker)\s*[:=-]?\s*(Current(?:\s*Smoker)?|Yes|Daily|Active)\b', raw_text)
-    smk_former = re.search(r'(?i)\b(?:Smoking|Tobacco(?:\s*Use)?|Smoker)\s*[:=-]?\s*(Former(?:\s*Smoker)?|Quit|Ex-Smoker)\b', raw_text)
-    smk_never = re.search(r'(?i)\b(?:Smoking|Tobacco(?:\s*Use)?|Smoker)\s*[:=-]?\s*(Never(?:\s*Smoked)?|Non-Smoker|No|Negative|None)\b', raw_text)
+    # Expanded patterns: handle "Smoking Status:", "Current smoker (1 pack/day)", OCR variants
+    smk_current = re.search(r'(?i)\b(?:Smoking(?:\s*Status)?|Tobacco(?:\s*Use)?|Smoker)\s*[:=-]?\s*(Current(?:\s*[Ss]moker)?|Yes|Daily|Active)\b', raw_text)
+    if not smk_current:
+        # Broader search: "Current smoker" or "pack/day" or "packs per day" anywhere
+        smk_current = re.search(r'(?i)\b(Current\s*smoker|\d+\s*pack[s]?[/\s]*(?:per\s*)?day)\b', raw_text)
+    smk_former = re.search(r'(?i)\b(?:Smoking(?:\s*Status)?|Tobacco(?:\s*Use)?|Smoker)\s*[:=-]?\s*(Former(?:\s*[Ss]moker)?|Quit|Ex-Smoker)\b', raw_text)
+    if not smk_former:
+        # Broader: "Former Smoker" standalone or "Quit X years ago"
+        smk_former = re.search(r'(?i)\b(Former\s*Smoker|Quit(?:s)?\s*\d*\s*years?\s*ago)\b', raw_text)
+    smk_never = re.search(r'(?i)\b(?:Smoking(?:\s*Status)?|Tobacco(?:\s*Use)?|Smoker)\s*[:=-]?\s*(Never(?:\s*[Ss]moked)?|Non-[Ss]moker|No(?:ne)?|Negative)\b', raw_text)
+    if not smk_never:
+        # Broader: "Never smoked" standalone
+        smk_never = re.search(r'(?i)\b(Never\s*smoked\s*(?:cigarettes)?)\b', raw_text)
 
     if smk_current:
         results["Smoker"] = {
@@ -476,7 +677,7 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
         }
 
     # 7. HeartDiseaseorAttack (Coronary Heart Disease or Myocardial Infarction)
-    cad_item = check_history_item(["coronary artery disease", "cad", "myocardial infarction", "heart attack", "angina"])
+    cad_item = check_history_item(["coronary artery disease", "coronary artery", "cad", "myocardial infarction", "heart attack", "angina"])
     if cad_item:
         val, stat, snip = cad_item
         results["HeartDiseaseorAttack"] = {
@@ -497,7 +698,12 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
 
     # 8. PhysActivity (Physical activity in past 30 days)
     act_pos = re.search(r'(?i)\b(?:Physical\s*Activity|Exercise)\s*[:=-]?\s*(Active|Regular|Daily|Yes|Frequent)\b', raw_text)
+    if not act_pos:
+        # Broader: any mention of "regular exercise", "cardiovascular exercise", "walks daily"
+        act_pos = re.search(r'(?i)\b(regular\s+(?:cardiovascular\s+)?exercise|walks?\s+daily|active\s+lifestyle)\b', raw_text)
     act_neg = re.search(r'(?i)\b(?:Physical\s*Activity|Exercise)\s*[:=-]?\s*(Sedentary|None|Inactive|No)\b', raw_text)
+    if not act_neg:
+        act_neg = re.search(r'(?i)\b(sedentary\s+lifestyle|no\s+regular\s+exercise|physically\s+inactive)\b', raw_text)
 
     if act_pos:
         results["PhysActivity"] = {
@@ -694,7 +900,10 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
 
     # 17. DiffWalk (Difficulty walking or climbing stairs)
     walk_pos = re.search(r'(?i)\b(?:Mobility|Ambulation|Difficulty\s*Walking)\s*[:=-]?\s*(Impaired|Difficulty|Wheelchair|Walker|Assisted|Cane)\b', raw_text)
-    walk_neg = re.search(r'(?i)\b(?:Mobility|Ambulation|Gait)\s*[:=-]?\s*(Normal|Independent|Intact|Steady|Unassisted)\b', raw_text)
+    walk_neg = re.search(r'(?i)\b(?:Mobility|Ambulation|Gait)\s*[:=-]?\s*(Normal|Independent|Intact|Steady|Unassisted|Indel[HhIi]ndent\w*)', raw_text)
+    if not walk_neg:
+        # Broader: "Independent ambulation", "unassisted ambulation", OCR variants
+        walk_neg = re.search(r'(?i)(?:Independent\s*ambulation|Indel[HhIi]ndent\s*ambul\w*|unassisted\s*ambulation)', raw_text)
 
     if walk_pos:
         results["DiffWalk"] = {
@@ -722,7 +931,18 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
         }
 
     # 18. Sex (0=Female, 1=Male)
-    sex_match = re.search(r'(?i)\b(?:Sex|Gender)\s*[:=-]?\s*(Male|Female|M|F)\b', raw_text)
+    sex_match = re.search(r'(?i)\b(?:Sex|Gender|Biological\s*Sex)\s*[:=-]?\s*(Male|Female|M|F)\b', raw_text)
+    if not sex_match:
+        # Broader: demographics often say "58 Female" or "62 Male" inline without label
+        sex_match = re.search(r'(?i)\b\d{1,3}\s+(Male|Female)\b', raw_text)
+    if not sex_match:
+        # Last resort: standalone "Male" or "Female" on its own line
+        for line in lines:
+            stripped = line.strip()
+            m = re.match(r'(?i)^(Male|Female)$', stripped)
+            if m:
+                sex_match = m
+                break
     if sex_match:
         s_val = sex_match.group(1).upper()
         is_male = 1.0 if s_val in ("MALE", "M") else 0.0
@@ -743,8 +963,14 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
         }
 
     # 19. Age (Mapped to 1-13 BRFSS Age bracket)
-    age_match = re.search(r'(?i)\b(?:Age|Patient\s*Age)\s*[:=-]?\s*(\d{1,3})\s*(?:years?|yo|y\.o\.)?\b', raw_text)
-    dob_match = re.search(r'(?i)\b(?:DOB|Date\s*of\s*Birth)\s*[:=-]?\s*(\d{1,4}[-/]\d{1,2}[-/]\d{1,4})\b', raw_text)
+    age_match = re.search(r'(?i)\b(?:Age|Patient\s*Age)\s*[:=-]?\s*(\d{1,3})\s*(?:years?|yo|y\.o\.)?', raw_text)
+    # Also check "(Age: 58 years)" inside parenthetical, common in demographic lines
+    if not age_match:
+        age_match = re.search(r'(?i)\(\s*Age\s*[:=-]?\s*(\d{1,3})\s*(?:years?)?\s*\)', raw_text)
+    # Broader: demographics line "Patient ... : 62 Male" where age is inline with sex
+    if not age_match:
+        age_match = re.search(r'(?i)(?:Patient|Pt)[^\n]{0,40}?:\s*(\d{2,3})\s+(?:Male|Female|M|F)\b', raw_text)
+    dob_match = re.search(r'(?i)\b(?:DOB|Date\s*of\s*Birth)\s*[:=-]?\s*(\d{1,4}[-/]\d{1,2}[-/]\d{1,4})', raw_text)
 
     age_years = None
     age_snippet = None
@@ -757,7 +983,8 @@ def match_clinical_entities(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, st
 
     if age_years is None and dob_match:
         dob_str = dob_match.group(1)
-        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y/%m/%d"):
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y/%m/%d",
+                     "%d-%m-%Y", "%m-%d-%Y", "%d.%m.%Y", "%Y.%m.%d"):
             try:
                 dt = datetime.strptime(dob_str, fmt)
                 today = datetime.now()

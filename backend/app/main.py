@@ -296,4 +296,3 @@ async def chat_context_ablation(request: ChatRequest):
     except Exception as e:
         message = str(e).replace(chat_service.gemini_key, '[REDACTED]') if chat_service.gemini_key else str(e)
         raise HTTPException(status_code=502, detail=f"Gemini ablation call failed: {message}")
-
