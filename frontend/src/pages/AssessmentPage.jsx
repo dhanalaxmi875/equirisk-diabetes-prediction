@@ -3,7 +3,7 @@ import { predictRisk, uploadMedicalReport, fetchSampleReport } from '../services
 import {
   Sparkles, ArrowRight, ArrowLeft, RotateCcw, AlertCircle, FileUp, CheckCircle2,
   AlertTriangle, HelpCircle, FileText, Check, ShieldCheck, Activity, Info, X,
-  UploadCloud, RefreshCw
+  UploadCloud, RefreshCw, ChevronDown, ChevronUp, Eye, ExternalLink
 } from 'lucide-react';
 
 const INITIAL_STATE = {
@@ -74,8 +74,125 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
   const [fieldMeta, setFieldMeta] = useState({}); // { [key]: { status, explanation, snippet, confirmed } }
   const [isDragOver, setIsDragOver] = useState(false);
 
+  // Interactive report results breakdown: 'auto_filled' | 'needs_confirmation' | 'not_found' | null
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState(null);
+  const [highlightedField, setHighlightedField] = useState(null);
+
   const fileInputRef = useRef(null);
   const showDemoPresets = new URLSearchParams(window.location.search).get('demo') === '1';
+
+  const getFieldStepInfo = (fieldKey) => {
+    if (STEP_1_FIELDS.includes(fieldKey)) return { step: 1, name: "Step 1: Biometrics & Demographics" };
+    if (STEP_2_FIELDS.includes(fieldKey)) return { step: 2, name: "Step 2: Vitals & History" };
+    if (STEP_3_FIELDS.includes(fieldKey)) return { step: 3, name: "Step 3: Lifestyle & Access" };
+    return { step: 1, name: "Questionnaire" };
+  };
+
+  const formatValueDisplay = (fieldKey, val) => {
+    if (val === null || val === undefined || isNaN(val)) {
+      return "Not yet answered";
+    }
+    const num = Number(val);
+    switch (fieldKey) {
+      case 'BMI':
+        return `${num.toFixed(1)} kg/m²`;
+      case 'Sex':
+        return num === 1 ? 'Male (1)' : 'Female (0)';
+      case 'Age': {
+        const ageBrackets = {
+          1: '18-24 yrs', 2: '25-29 yrs', 3: '30-34 yrs', 4: '35-39 yrs',
+          5: '40-44 yrs', 6: '45-49 yrs', 7: '50-54 yrs', 8: '55-59 yrs',
+          9: '60-64 yrs', 10: '65-69 yrs', 11: '70-74 yrs', 12: '75-79 yrs', 13: '80+ yrs'
+        };
+        return ageBrackets[num] ? `${ageBrackets[num]} (Bracket ${num})` : `Bracket ${num}`;
+      }
+      case 'GenHlth': {
+        const genHlthLabels = { 1: '1 - Excellent', 2: '2 - Very Good', 3: '3 - Good', 4: '4 - Fair', 5: '5 - Poor' };
+        return genHlthLabels[num] || `Rating ${num}`;
+      }
+      case 'HighBP':
+        return num === 1 ? 'Yes (Hypertensive >= 130/80)' : 'No (Normal BP)';
+      case 'HighChol':
+        return num === 1 ? 'Yes (Elevated >= 200 mg/dL)' : 'No (Desirable)';
+      case 'CholCheck':
+        return num === 1 ? 'Yes (Screened in 5 yrs)' : 'No (Not screened)';
+      case 'Stroke':
+        return num === 1 ? 'Yes (History of Stroke)' : 'No (None)';
+      case 'HeartDiseaseorAttack':
+        return num === 1 ? 'Yes (History of CHD/MI)' : 'No (None)';
+      case 'DiffWalk':
+        return num === 1 ? 'Yes (Difficulty Walking)' : 'No (Normal Gait)';
+      case 'Smoker':
+        return num === 1 ? 'Yes (>= 100 cigarettes)' : 'No (< 100 cigarettes)';
+      case 'PhysActivity':
+        return num === 1 ? 'Yes (Active in past 30d)' : 'No (Sedentary)';
+      case 'Fruits':
+        return num === 1 ? 'Yes (Daily Fruit)' : 'No';
+      case 'Veggies':
+        return num === 1 ? 'Yes (Daily Veggies)' : 'No';
+      case 'HvyAlcoholConsump':
+        return num === 1 ? 'Yes (Heavy Alcohol Intake)' : 'No';
+      case 'AnyHealthcare':
+        return num === 1 ? 'Yes (Has Health Coverage)' : 'No (Uninsured)';
+      case 'NoDocbcCost':
+        return num === 1 ? 'Yes (Cost Barrier to Care)' : 'No';
+      case 'PhysHlth':
+        return `${num} days / month`;
+      case 'MentHlth':
+        return `${num} days / month`;
+      case 'Education': {
+        const eduLabels = {
+          1: 'Never / Kindergarten', 2: 'Elementary (1-8)', 3: 'Some High School',
+          4: 'High School / GED', 5: 'Some College / Tech', 6: 'College Graduate (4+ yrs)'
+        };
+        return eduLabels[num] ? `${eduLabels[num]} (Level ${num})` : `Level ${num}`;
+      }
+      case 'Income': {
+        const incLabels = {
+          1: '< $10,000', 2: '$10k - <$15k', 3: '$15k - <$20k', 4: '$20k - <$25k',
+          5: '$25k - <$35k', 6: '$35k - <$50k', 7: '$50k - <$75k', 8: '>= $75,000'
+        };
+        return incLabels[num] ? `${incLabels[num]} (Bracket ${num})` : `Bracket ${num}`;
+      }
+      default:
+        return String(num);
+    }
+  };
+
+  const jumpToField = (fieldKey) => {
+    let targetStep = 1;
+    if (STEP_1_FIELDS.includes(fieldKey)) targetStep = 1;
+    else if (STEP_2_FIELDS.includes(fieldKey)) targetStep = 2;
+    else if (STEP_3_FIELDS.includes(fieldKey)) targetStep = 3;
+
+    setStep(targetStep);
+    setHighlightedField(fieldKey);
+
+    setTimeout(() => {
+      const el = document.getElementById(`field-container-${fieldKey}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 120);
+
+    setTimeout(() => {
+      setHighlightedField(null);
+    }, 2500);
+  };
+
+  const handleCategoryCardClick = (category) => {
+    if (activeCategoryFilter === category) {
+      setActiveCategoryFilter(null);
+    } else {
+      setActiveCategoryFilter(category);
+      setTimeout(() => {
+        const panel = document.getElementById('extraction-breakdown-panel');
+        if (panel) {
+          panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 60);
+    }
+  };
 
   const updateField = (field, value) => {
     const numVal = value === '' || value === null ? null : Number(value);
@@ -190,6 +307,11 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
 
         setFormData(newFormData);
         setStep(1);
+        if (result.needs_confirmation_count > 0) {
+          setActiveCategoryFilter('needs_confirmation');
+        } else {
+          setActiveCategoryFilter('auto_filled');
+        }
       }, 500);
 
     } catch (err) {
@@ -220,6 +342,8 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
     setFormData(INITIAL_STATE);
     setError(null);
     setValidationErrors([]);
+    setActiveCategoryFilter(null);
+    setHighlightedField(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -644,38 +768,329 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
             </div>
           </div>
 
-          {/* Counts statistics pills */}
+          {/* Counts statistics pills - Interactive Buttons */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
-              <div>
-                <div className="text-label-sm uppercase tracking-wider text-emerald-400 font-semibold">Auto-Filled Fields</div>
+            {/* Auto-Filled Fields Button */}
+            <button
+              type="button"
+              onClick={() => handleCategoryCardClick('auto_filled')}
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
+                activeCategoryFilter === 'auto_filled'
+                  ? 'bg-emerald-500/25 border-emerald-400 ring-2 ring-emerald-400/50 shadow-lg shadow-emerald-500/10'
+                  : 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40'
+              }`}
+            >
+              <div className="flex flex-col gap-1">
+                <div className="text-label-sm uppercase tracking-wider text-emerald-400 font-semibold flex items-center gap-1.5">
+                  <span>Auto-Filled Fields</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    {activeCategoryFilter === 'auto_filled' ? 'Active' : 'Click to View'}
+                  </span>
+                </div>
                 <div className="text-headline-sm font-bold text-emerald-300 font-code-metric">
                   {reportResult.auto_filled_count} <span className="text-body-sm font-normal text-emerald-400/80">/ 21</span>
                 </div>
+                <span className="text-[11px] text-emerald-400/90 font-medium">
+                  {activeCategoryFilter === 'auto_filled' ? 'Click to collapse ▲' : 'Click to view extracted fields ▼'}
+                </span>
               </div>
-              <CheckCircle2 size={24} className="text-emerald-400 opacity-80" />
-            </div>
+              <div className={`p-2 rounded-lg bg-emerald-500/20 text-emerald-400 transition-transform ${activeCategoryFilter === 'auto_filled' ? 'scale-110' : 'group-hover:scale-105'}`}>
+                <CheckCircle2 size={24} />
+              </div>
+            </button>
 
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-              <div>
-                <div className="text-label-sm uppercase tracking-wider text-amber-400 font-semibold">Needs Confirmation</div>
+            {/* Needs Confirmation Button */}
+            <button
+              type="button"
+              onClick={() => handleCategoryCardClick('needs_confirmation')}
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
+                activeCategoryFilter === 'needs_confirmation'
+                  ? 'bg-amber-500/25 border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/10'
+                  : 'bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/40'
+              }`}
+            >
+              <div className="flex flex-col gap-1">
+                <div className="text-label-sm uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1.5">
+                  <span>Needs Confirmation</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    {activeCategoryFilter === 'needs_confirmation' ? 'Active' : 'Click to View'}
+                  </span>
+                </div>
                 <div className="text-headline-sm font-bold text-amber-300 font-code-metric">
                   {reportResult.needs_confirmation_count}
                 </div>
+                <span className="text-[11px] text-amber-400/90 font-medium">
+                  {activeCategoryFilter === 'needs_confirmation' ? 'Click to collapse ▲' : 'Click to review & confirm ▼'}
+                </span>
               </div>
-              <AlertTriangle size={24} className="text-amber-400 opacity-80" />
-            </div>
+              <div className={`p-2 rounded-lg bg-amber-500/20 text-amber-400 transition-transform ${activeCategoryFilter === 'needs_confirmation' ? 'scale-110' : 'group-hover:scale-105'}`}>
+                <AlertTriangle size={24} />
+              </div>
+            </button>
 
-            <div className="p-3.5 rounded-xl bg-primary-container/10 border border-primary/20 flex items-center justify-between">
-              <div>
-                <div className="text-label-sm uppercase tracking-wider text-primary font-semibold">Manual Input Required</div>
+            {/* Manual Input Required Button */}
+            <button
+              type="button"
+              onClick={() => handleCategoryCardClick('not_found')}
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between group ${
+                activeCategoryFilter === 'not_found'
+                  ? 'bg-primary-container/30 border-primary ring-2 ring-primary/50 shadow-lg shadow-primary/10'
+                  : 'bg-primary-container/10 border-primary/20 hover:bg-primary-container/20 hover:border-primary/40'
+              }`}
+            >
+              <div className="flex flex-col gap-1">
+                <div className="text-label-sm uppercase tracking-wider text-primary font-semibold flex items-center gap-1.5">
+                  <span>Manual Input Required</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-primary/20 text-primary border border-primary/30">
+                    {activeCategoryFilter === 'not_found' ? 'Active' : 'Click to View'}
+                  </span>
+                </div>
                 <div className="text-headline-sm font-bold text-primary font-code-metric">
                   {reportResult.not_found_count}
                 </div>
+                <span className="text-[11px] text-primary/90 font-medium">
+                  {activeCategoryFilter === 'not_found' ? 'Click to collapse ▲' : 'Click to view missing questions ▼'}
+                </span>
               </div>
-              <HelpCircle size={24} className="text-primary opacity-80" />
-            </div>
+              <div className={`p-2 rounded-lg bg-primary/20 text-primary transition-transform ${activeCategoryFilter === 'not_found' ? 'scale-110' : 'group-hover:scale-105'}`}>
+                <HelpCircle size={24} />
+              </div>
+            </button>
           </div>
+
+          {/* INTERACTIVE BREAKDOWN DRAWER: Displayed when user clicks Auto-Filled, Needs Confirmation, or Manual Input Required */}
+          {activeCategoryFilter && (
+            <div
+              id="extraction-breakdown-panel"
+              className={`rounded-2xl p-5 border transition-all flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-200 ${
+                activeCategoryFilter === 'auto_filled'
+                  ? 'bg-emerald-950/20 border-emerald-500/30'
+                  : activeCategoryFilter === 'needs_confirmation'
+                  ? 'bg-amber-950/20 border-amber-500/30'
+                  : 'bg-primary-container/15 border-primary/30'
+              }`}
+            >
+              {/* Header with category title & switcher tabs */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-outline-variant/20 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl border ${
+                    activeCategoryFilter === 'auto_filled'
+                      ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                      : activeCategoryFilter === 'needs_confirmation'
+                      ? 'bg-amber-500/20 border-amber-500/30 text-amber-400'
+                      : 'bg-primary/20 border-primary/30 text-primary'
+                  }`}>
+                    {activeCategoryFilter === 'auto_filled' && <CheckCircle2 size={22} />}
+                    {activeCategoryFilter === 'needs_confirmation' && <AlertTriangle size={22} />}
+                    {activeCategoryFilter === 'not_found' && <HelpCircle size={22} />}
+                  </div>
+                  <div>
+                    <h3 className="text-title-md font-bold text-on-surface flex items-center gap-2">
+                      {activeCategoryFilter === 'auto_filled' && (
+                        <>
+                          <span>Auto-Filled Fields</span>
+                          <span className="text-label-sm font-code-metric px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            {reportResult.auto_filled_count} fields
+                          </span>
+                        </>
+                      )}
+                      {activeCategoryFilter === 'needs_confirmation' && (
+                        <>
+                          <span>Fields Needing Confirmation</span>
+                          <span className="text-label-sm font-code-metric px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            {reportResult.needs_confirmation_count} field{reportResult.needs_confirmation_count === 1 ? '' : 's'}
+                          </span>
+                        </>
+                      )}
+                      {activeCategoryFilter === 'not_found' && (
+                        <>
+                          <span>Manual Input Required</span>
+                          <span className="text-label-sm font-code-metric px-2 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">
+                            {reportResult.not_found_count} fields
+                          </span>
+                        </>
+                      )}
+                    </h3>
+                    <p className="text-body-sm text-on-surface-variant">
+                      {activeCategoryFilter === 'auto_filled' &&
+                        "Extracted with high clinical confidence from your report. Click 'Jump to Field' to view or edit them."}
+                      {activeCategoryFilter === 'needs_confirmation' &&
+                        "Derived or computed from clinical vitals (e.g. BMI from height and weight). Please review and confirm or adjust."}
+                      {activeCategoryFilter === 'not_found' &&
+                        "These 21 BRFSS risk indicators were not present in your report. Complete them in the form before calculating risk."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Filter Switcher Tabs + Close */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center p-1 rounded-xl bg-surface-container border border-outline-variant/30 text-label-sm">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCategoryFilter('auto_filled')}
+                      className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                        activeCategoryFilter === 'auto_filled'
+                          ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                          : 'text-outline hover:text-on-surface'
+                      }`}
+                    >
+                      Auto-Filled ({reportResult.auto_filled_count})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveCategoryFilter('needs_confirmation')}
+                      className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                        activeCategoryFilter === 'needs_confirmation'
+                          ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm'
+                          : 'text-outline hover:text-on-surface'
+                      }`}
+                    >
+                      Needs Conf ({reportResult.needs_confirmation_count})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveCategoryFilter('not_found')}
+                      className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                        activeCategoryFilter === 'not_found'
+                          ? 'bg-primary-container text-on-primary-container border border-primary shadow-sm'
+                          : 'text-outline hover:text-on-surface'
+                      }`}
+                    >
+                      Manual ({reportResult.not_found_count})
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveCategoryFilter(null)}
+                    className="p-1.5 rounded-lg bg-surface-container hover:bg-surface-variant text-outline hover:text-on-surface border border-outline-variant/30 transition-all cursor-pointer flex items-center gap-1 text-label-sm"
+                    title="Close breakdown"
+                  >
+                    <X size={16} />
+                    <span className="hidden sm:inline">Close</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Items List */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[460px] overflow-y-auto pr-1">
+                {Object.entries(reportResult.extracted_fields)
+                  .filter(([k, v]) => {
+                    if (activeCategoryFilter === 'auto_filled') return v.status === 'auto_filled';
+                    if (activeCategoryFilter === 'needs_confirmation') return v.status === 'needs_confirmation';
+                    if (activeCategoryFilter === 'not_found') return v.status === 'not_found' || v.value === null;
+                    return false;
+                  })
+                  .map(([fieldKey, info]) => {
+                    const stepInfo = getFieldStepInfo(fieldKey);
+                    const currentVal = formData[fieldKey];
+                    const isAnswered = currentVal !== null && currentVal !== undefined && !isNaN(currentVal);
+                    const isConfirmed = fieldMeta[fieldKey]?.confirmed;
+
+                    return (
+                      <div
+                        key={fieldKey}
+                        className="p-3.5 rounded-xl bg-surface-container-lowest/80 border border-outline-variant/30 flex flex-col justify-between gap-2.5 hover:border-outline-variant/60 transition-all shadow-sm"
+                      >
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-body-sm font-bold text-on-surface">
+                                {FIELD_LABELS[fieldKey] || fieldKey}
+                              </span>
+                              <code className="text-[11px] font-mono px-1 py-0.2 rounded bg-surface-container text-outline">
+                                {fieldKey}
+                              </code>
+                            </div>
+                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-surface-container border border-outline-variant/30 text-on-surface-variant font-medium shrink-0">
+                              {stepInfo.name.split(':')[0]}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-body-sm pt-1">
+                            <span className="text-label-sm text-outline">Value:</span>
+                            <span className="font-semibold text-on-surface">
+                              {isAnswered ? (
+                                <span className={activeCategoryFilter === 'auto_filled' ? 'text-emerald-400' : 'text-secondary-container'}>
+                                  {formatValueDisplay(fieldKey, currentVal)}
+                                </span>
+                              ) : (
+                                <span className="text-amber-400 font-medium italic">
+                                  Not yet answered (Blank)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+
+                          <p className="text-label-sm text-on-surface-variant line-clamp-2">
+                            {info.explanation || "No mention found in medical report."}
+                          </p>
+
+                          {info.source_snippet && (
+                            <div className="text-[11px] font-mono text-outline bg-surface-container-high/50 p-1.5 rounded border border-outline-variant/20 truncate" title={info.source_snippet}>
+                              <span className="font-sans text-on-surface-variant font-medium">Snippet: </span>
+                              "{info.source_snippet}"
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-outline-variant/10">
+                          <div>
+                            {activeCategoryFilter === 'needs_confirmation' && (
+                              isConfirmed ? (
+                                <span className="text-label-sm font-semibold text-emerald-400 flex items-center gap-1">
+                                  <Check size={12} /> Confirmed
+                                </span>
+                              ) : (
+                                <span className="text-label-sm text-amber-400 font-medium">Needs review</span>
+                              )
+                            )}
+                            {activeCategoryFilter === 'not_found' && (
+                              isAnswered ? (
+                                <span className="text-label-sm font-semibold text-emerald-400 flex items-center gap-1">
+                                  <Check size={12} /> Answered
+                                </span>
+                              ) : (
+                                <span className="text-label-sm text-amber-400 font-medium flex items-center gap-1">
+                                  <AlertCircle size={12} /> Blank
+                                </span>
+                              )
+                            )}
+                            {activeCategoryFilter === 'auto_filled' && (
+                              <span className="text-label-sm text-emerald-400/90 font-medium flex items-center gap-1">
+                                <CheckCircle2 size={12} /> High confidence
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {activeCategoryFilter === 'needs_confirmation' && !isConfirmed && (
+                              <button
+                                type="button"
+                                onClick={() => confirmField(fieldKey)}
+                                className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-label-sm font-semibold flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                <Check size={12} />
+                                <span>Confirm</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => jumpToField(fieldKey)}
+                              className="px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-variant text-on-surface text-label-sm font-semibold flex items-center gap-1 border border-outline-variant/40 hover:border-secondary-container transition-all cursor-pointer"
+                            >
+                              <span>{isAnswered ? 'Jump to Field' : 'Answer Question'}</span>
+                              <ArrowRight size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
 
           {/* DETECTED NON-MODEL CLINICAL LAB INDICATORS (Displayed transparently, NEVER mapped to model inputs) */}
           {reportResult.non_model_clinical_indicators && Object.keys(reportResult.non_model_clinical_indicators).length > 0 && (
@@ -769,9 +1184,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
             </div>
 
             {/* BMI Slider */}
-            <div className={`flex flex-col gap-2 p-4 rounded-xl bg-surface-container-lowest/60 border ${
-              validationErrors.includes('BMI') ? 'border-error' : 'border-outline-variant/30'
-            }`}>
+            <div
+              id="field-container-BMI"
+              className={`flex flex-col gap-2 p-4 rounded-xl bg-surface-container-lowest/60 border transition-all duration-300 ${
+                validationErrors.includes('BMI') ? 'border-error' : 'border-outline-variant/30'
+              } ${
+                highlightedField === 'BMI'
+                  ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                  : ''
+              }`}
+            >
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <label className="text-body-md font-semibold text-on-surface">
@@ -813,9 +1235,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
             {/* Age Category & Biological Sex */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Age Category */}
-              <div className={`flex flex-col gap-1.5 p-3 rounded-xl bg-surface-container-lowest/40 border ${
-                validationErrors.includes('Age') ? 'border-error' : 'border-outline-variant/30'
-              }`}>
+              <div
+                id="field-container-Age"
+                className={`flex flex-col gap-1.5 p-3 rounded-xl bg-surface-container-lowest/40 border transition-all duration-300 ${
+                  validationErrors.includes('Age') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'Age'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <label className="text-label-md font-medium text-on-surface-variant">
                     Age Category
@@ -845,9 +1274,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
               </div>
 
               {/* Biological Sex */}
-              <div className={`flex flex-col gap-1.5 p-3 rounded-xl bg-surface-container-lowest/40 border ${
-                validationErrors.includes('Sex') ? 'border-error' : 'border-outline-variant/30'
-              }`}>
+              <div
+                id="field-container-Sex"
+                className={`flex flex-col gap-1.5 p-3 rounded-xl bg-surface-container-lowest/40 border transition-all duration-300 ${
+                  validationErrors.includes('Sex') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'Sex'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <label className="text-label-md font-medium text-on-surface-variant">
                     Biological Sex
@@ -882,9 +1318,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
             </div>
 
             {/* General Health Self-Assessment */}
-            <div className={`flex flex-col gap-2 p-3.5 rounded-xl bg-surface-container-lowest/40 border ${
-              validationErrors.includes('GenHlth') ? 'border-error' : 'border-outline-variant/30'
-            }`}>
+            <div
+              id="field-container-GenHlth"
+              className={`flex flex-col gap-2 p-3.5 rounded-xl bg-surface-container-lowest/40 border transition-all duration-300 ${
+                validationErrors.includes('GenHlth') ? 'border-error' : 'border-outline-variant/30'
+              } ${
+                highlightedField === 'GenHlth'
+                  ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                  : ''
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <label className="text-label-md font-medium text-on-surface-variant">
                   General Health Self-Assessment
@@ -917,9 +1360,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
 
             {/* Socioeconomic Determinants: Income & Education */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className={`flex flex-col gap-1.5 p-3 rounded-xl bg-surface-container-lowest/40 border ${
-                validationErrors.includes('Income') ? 'border-error' : 'border-outline-variant/30'
-              }`}>
+              <div
+                id="field-container-Income"
+                className={`flex flex-col gap-1.5 p-3 rounded-xl bg-surface-container-lowest/40 border transition-all duration-300 ${
+                  validationErrors.includes('Income') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'Income'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <label className="text-label-md font-medium text-on-surface-variant">
                     Household Income Bracket
@@ -943,9 +1393,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
                 </select>
               </div>
 
-              <div className={`flex flex-col gap-1.5 p-3 rounded-xl bg-surface-container-lowest/40 border ${
-                validationErrors.includes('Education') ? 'border-error' : 'border-outline-variant/30'
-              }`}>
+              <div
+                id="field-container-Education"
+                className={`flex flex-col gap-1.5 p-3 rounded-xl bg-surface-container-lowest/40 border transition-all duration-300 ${
+                  validationErrors.includes('Education') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'Education'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <label className="text-label-md font-medium text-on-surface-variant">
                     Education Completed
@@ -982,9 +1439,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* HighBP */}
-              <div className={`p-4 rounded-xl bg-surface-container-lowest/60 border ${
-                validationErrors.includes('HighBP') ? 'border-error' : 'border-outline-variant/30'
-              } flex flex-col justify-between gap-3`}>
+              <div
+                id="field-container-HighBP"
+                className={`p-4 rounded-xl bg-surface-container-lowest/60 border transition-all duration-300 ${
+                  validationErrors.includes('HighBP') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'HighBP'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                } flex flex-col justify-between gap-3`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-body-md font-semibold text-on-surface">High Blood Pressure</div>
@@ -1024,9 +1488,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
               </div>
 
               {/* HighChol */}
-              <div className={`p-4 rounded-xl bg-surface-container-lowest/60 border ${
-                validationErrors.includes('HighChol') ? 'border-error' : 'border-outline-variant/30'
-              } flex flex-col justify-between gap-3`}>
+              <div
+                id="field-container-HighChol"
+                className={`p-4 rounded-xl bg-surface-container-lowest/60 border transition-all duration-300 ${
+                  validationErrors.includes('HighChol') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'HighChol'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                } flex flex-col justify-between gap-3`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-body-md font-semibold text-on-surface">High Cholesterol</div>
@@ -1066,9 +1537,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
               </div>
 
               {/* CholCheck */}
-              <div className={`p-4 rounded-xl bg-surface-container-lowest/60 border ${
-                validationErrors.includes('CholCheck') ? 'border-error' : 'border-outline-variant/30'
-              } flex flex-col justify-between gap-3`}>
+              <div
+                id="field-container-CholCheck"
+                className={`p-4 rounded-xl bg-surface-container-lowest/60 border transition-all duration-300 ${
+                  validationErrors.includes('CholCheck') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'CholCheck'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                } flex flex-col justify-between gap-3`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-body-md font-semibold text-on-surface">Cholesterol Check in Past 5 Yrs</div>
@@ -1108,9 +1586,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
               </div>
 
               {/* Stroke */}
-              <div className={`p-4 rounded-xl bg-surface-container-lowest/60 border ${
-                validationErrors.includes('Stroke') ? 'border-error' : 'border-outline-variant/30'
-              } flex flex-col justify-between gap-3`}>
+              <div
+                id="field-container-Stroke"
+                className={`p-4 rounded-xl bg-surface-container-lowest/60 border transition-all duration-300 ${
+                  validationErrors.includes('Stroke') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'Stroke'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                } flex flex-col justify-between gap-3`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-body-md font-semibold text-on-surface">History of Stroke</div>
@@ -1150,9 +1635,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
               </div>
 
               {/* HeartDiseaseorAttack */}
-              <div className={`p-4 rounded-xl bg-surface-container-lowest/60 border ${
-                validationErrors.includes('HeartDiseaseorAttack') ? 'border-error' : 'border-outline-variant/30'
-              } flex flex-col justify-between gap-3`}>
+              <div
+                id="field-container-HeartDiseaseorAttack"
+                className={`p-4 rounded-xl bg-surface-container-lowest/60 border transition-all duration-300 ${
+                  validationErrors.includes('HeartDiseaseorAttack') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'HeartDiseaseorAttack'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                } flex flex-col justify-between gap-3`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-body-md font-semibold text-on-surface">Coronary Heart Disease / MI</div>
@@ -1192,9 +1684,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
               </div>
 
               {/* DiffWalk */}
-              <div className={`p-4 rounded-xl bg-surface-container-lowest/60 border ${
-                validationErrors.includes('DiffWalk') ? 'border-error' : 'border-outline-variant/30'
-              } flex flex-col justify-between gap-3`}>
+              <div
+                id="field-container-DiffWalk"
+                className={`p-4 rounded-xl bg-surface-container-lowest/60 border transition-all duration-300 ${
+                  validationErrors.includes('DiffWalk') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'DiffWalk'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                } flex flex-col justify-between gap-3`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-body-md font-semibold text-on-surface">Difficulty Walking / Stairs</div>
@@ -1259,7 +1758,8 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
               ].map(item => (
                 <div
                   key={item.key}
-                  className={`p-3.5 rounded-xl border flex flex-col justify-between gap-2.5 transition-all ${
+                  id={`field-container-${item.key}`}
+                  className={`p-3.5 rounded-xl border flex flex-col justify-between gap-2.5 transition-all duration-300 ${
                     validationErrors.includes(item.key)
                       ? 'border-error bg-error-container/10'
                       : formData[item.key] === 1
@@ -1267,6 +1767,10 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
                       : formData[item.key] === 0
                       ? 'bg-surface-container-lowest/70 border-outline-variant/40'
                       : 'bg-surface-container-lowest/30 border-dashed border-outline-variant/50'
+                  } ${
+                    highlightedField === item.key
+                      ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                      : ''
                   }`}
                 >
                   <div className="flex items-start justify-between gap-1">
@@ -1310,9 +1814,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
 
             {/* Sliders: Mental and Physical Health Days */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              <div className={`p-4 rounded-xl bg-surface-container-lowest/60 border ${
-                validationErrors.includes('PhysHlth') ? 'border-error' : 'border-outline-variant/30'
-              } flex flex-col gap-2`}>
+              <div
+                id="field-container-PhysHlth"
+                className={`p-4 rounded-xl bg-surface-container-lowest/60 border transition-all duration-300 ${
+                  validationErrors.includes('PhysHlth') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'PhysHlth'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                } flex flex-col gap-2`}
+              >
                 <div className="flex justify-between items-baseline">
                   <div className="flex items-center gap-2">
                     <label className="text-body-sm font-semibold text-on-surface">
@@ -1339,9 +1850,16 @@ export default function AssessmentPage({ onPredictionComplete, setActiveTab }) {
                 </div>
               </div>
 
-              <div className={`p-4 rounded-xl bg-surface-container-lowest/60 border ${
-                validationErrors.includes('MentHlth') ? 'border-error' : 'border-outline-variant/30'
-              } flex flex-col gap-2`}>
+              <div
+                id="field-container-MentHlth"
+                className={`p-4 rounded-xl bg-surface-container-lowest/60 border transition-all duration-300 ${
+                  validationErrors.includes('MentHlth') ? 'border-error' : 'border-outline-variant/30'
+                } ${
+                  highlightedField === 'MentHlth'
+                    ? 'ring-2 ring-secondary-container shadow-xl shadow-secondary-container/30 bg-secondary-container/15 scale-[1.01]'
+                    : ''
+                } flex flex-col gap-2`}
+              >
                 <div className="flex justify-between items-baseline">
                   <div className="flex items-center gap-2">
                     <label className="text-body-sm font-semibold text-on-surface">

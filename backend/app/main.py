@@ -185,17 +185,31 @@ async def extract_medical_report(file: UploadFile = File(..., description="Medic
 @app.get("/sample-report/{report_name}")
 def get_sample_report(report_name: str):
     valid_samples = {
-        "comprehensive": (os.path.join(BASE_DIR, "sample_reports", "comprehensive_patient_report.pdf"), "application/pdf"),
-        "minimal": (os.path.join(BASE_DIR, "sample_reports", "minimal_incomplete_report.pdf"), "application/pdf"),
-        "scanned": (os.path.join(BASE_DIR, "sample_reports", "scanned_clinic_note.png"), "image/png"),
+        "comprehensive": ("comprehensive_patient_report.pdf", "application/pdf"),
+        "minimal": ("minimal_incomplete_report.pdf", "application/pdf"),
+        "scanned": ("scanned_clinic_note.png", "image/png"),
     }
     if report_name not in valid_samples:
         raise HTTPException(status_code=404, detail=f"Sample report '{report_name}' not found. Use: comprehensive, minimal, scanned")
-    filepath, mime = valid_samples[report_name]
-    if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail="Sample report file not found on server.")
+    
+    filename, mime = valid_samples[report_name]
+    # Check project root, then backend directory
+    candidate_paths = [
+        os.path.join(os.path.dirname(BASE_DIR), "sample_reports", filename),
+        os.path.join(BASE_DIR, "sample_reports", filename),
+        os.path.join("sample_reports", filename)
+    ]
+    filepath = None
+    for p in candidate_paths:
+        if os.path.exists(p):
+            filepath = p
+            break
+
+    if not filepath or not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail=f"Sample report file '{filename}' not found on server.")
+    
     from fastapi.responses import FileResponse
-    return FileResponse(filepath, media_type=mime, filename=os.path.basename(filepath))
+    return FileResponse(filepath, media_type=mime, filename=filename)
 
 @app.get("/health")
 async def health_check():
@@ -282,3 +296,4 @@ async def chat_context_ablation(request: ChatRequest):
     except Exception as e:
         message = str(e).replace(chat_service.gemini_key, '[REDACTED]') if chat_service.gemini_key else str(e)
         raise HTTPException(status_code=502, detail=f"Gemini ablation call failed: {message}")
+
