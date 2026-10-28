@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import LandingPage from './pages/LandingPage';
@@ -11,17 +13,41 @@ import BatchAnalysisPage from './pages/BatchAnalysisPage';
 import ReportPage from './pages/ReportPage';
 import DisclaimerPage from './pages/DisclaimerPage';
 import ChatPage from './pages/ChatPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 
-export default function App() {
+// Protected Route Component
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  // For now, allow access without authentication
+  // Uncomment the following lines to enable authentication when MongoDB is available
+  // if (!isAuthenticated()) {
+  //   return <Navigate to="/login" replace />;
+  // }
+
+  return children;
+}
+
+function AppContent() {
   const [activeTab, setActiveTab] = useState('landing');
   const [latestPrediction, setLatestPrediction] = useState(null);
   const [latestFeatures, setLatestFeatures] = useState(null);
   const [latestExplanation, setLatestExplanation] = useState(null);
+  const { user, logout } = useAuth();
 
   const handlePredictionComplete = (prediction, features) => {
     setLatestPrediction(prediction);
     setLatestFeatures(features);
-    setLatestExplanation(null); // Reset explanation on new assessment
+    setLatestExplanation(null);
     setActiveTab('results');
   };
 
@@ -33,7 +59,7 @@ export default function App() {
       <div className="fixed top-1/3 -right-40 w-[550px] h-[550px] bg-secondary-container/10 rounded-full blur-[140px] pointer-events-none z-0"></div>
 
       {/* Top Sticky Header */}
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={logout} />
 
       {/* Main Content Area */}
       <main className="page-transition flex-1 w-full max-w-[1920px] min-w-0 mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 z-10">
@@ -42,50 +68,64 @@ export default function App() {
         )}
 
         {activeTab === 'assessment' && (
-          <AssessmentPage
-            onPredictionComplete={handlePredictionComplete}
-            setActiveTab={setActiveTab}
-          />
+          <ProtectedRoute>
+            <AssessmentPage
+              onPredictionComplete={handlePredictionComplete}
+              setActiveTab={setActiveTab}
+            />
+          </ProtectedRoute>
         )}
 
         {activeTab === 'results' && (
-          <ResultsPage
-            prediction={latestPrediction}
-            formData={latestFeatures}
-            explanation={latestExplanation}
-            setExplanation={setLatestExplanation}
-            setActiveTab={setActiveTab}
-          />
+          <ProtectedRoute>
+            <ResultsPage
+              prediction={latestPrediction}
+              formData={latestFeatures}
+              explanation={latestExplanation}
+              setExplanation={setLatestExplanation}
+              setActiveTab={setActiveTab}
+            />
+          </ProtectedRoute>
         )}
 
         {activeTab === 'explainability' && (
-          <ExplainabilityPage
-            currentFeatures={latestFeatures}
-            predictionId={latestPrediction?.prediction_id}
-            setActiveTab={setActiveTab}
-          />
+          <ProtectedRoute>
+            <ExplainabilityPage
+              currentFeatures={latestFeatures}
+              predictionId={latestPrediction?.prediction_id}
+              setActiveTab={setActiveTab}
+            />
+          </ProtectedRoute>
         )}
 
         {activeTab === 'insights' && (
-          <InsightsPage />
+          <ProtectedRoute>
+            <InsightsPage />
+          </ProtectedRoute>
         )}
 
         {activeTab === 'model-transparency' && (
-          <ModelTransparencyPage setActiveTab={setActiveTab} />
+          <ProtectedRoute>
+            <ModelTransparencyPage setActiveTab={setActiveTab} />
+          </ProtectedRoute>
         )}
 
         {activeTab === 'batch' && (
-          <BatchAnalysisPage />
+          <ProtectedRoute>
+            <BatchAnalysisPage />
+          </ProtectedRoute>
         )}
 
         {activeTab === 'report' && (
-          <ReportPage 
-            latestPrediction={latestPrediction}
-            latestFeatures={latestFeatures}
-            latestExplanation={latestExplanation}
-            setLatestExplanation={setLatestExplanation}
-            setActiveTab={setActiveTab}
-          />
+          <ProtectedRoute>
+            <ReportPage
+              latestPrediction={latestPrediction}
+              latestFeatures={latestFeatures}
+              latestExplanation={latestExplanation}
+              setLatestExplanation={setLatestExplanation}
+              setActiveTab={setActiveTab}
+            />
+          </ProtectedRoute>
         )}
 
         {activeTab === 'disclaimer' && (
@@ -98,5 +138,17 @@ export default function App() {
       <Footer setActiveTab={setActiveTab} />
       <ChatPage latestPrediction={latestPrediction} />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/*" element={<AppContent />} />
+      </Routes>
+    </Router>
   );
 }

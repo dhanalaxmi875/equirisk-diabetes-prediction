@@ -5,6 +5,7 @@ backend/.env
 # Python
 __pycache__/
 *.py[cod]
+node_modules/
 *$py.class
 *.so
 .Python

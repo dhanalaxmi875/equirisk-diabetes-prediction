@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { Shield, ArrowRight, Menu, X, Activity } from 'lucide-react';
+import { Shield, ArrowRight, Menu, X, Activity, LogOut, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-export default function Navbar({ activeTab, setActiveTab }) {
+export default function Navbar({ activeTab, setActiveTab, user, onLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
   const navItems = [
     { id: 'landing', label: 'Overview' },
@@ -15,6 +18,11 @@ export default function Navbar({ activeTab, setActiveTab }) {
     setActiveTab(id);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLogout = () => {
+    onLogout();
+    navigate('/login');
   };
 
   return (
@@ -54,14 +62,51 @@ export default function Navbar({ activeTab, setActiveTab }) {
 
         {/* Trailing Action Buttons */}
         <div className="flex items-center gap-3">
+          {user ? (
+            <>
+              <button
+                onClick={() => handleNavClick('assessment')}
+                className="inline-flex items-center gap-2 bg-primary-container hover:bg-inverse-primary text-on-primary-container px-4 py-2 rounded-xl text-label-md font-label-md font-semibold transition-all duration-200 active:scale-[0.98] electric-glow border-t border-white/20"
+              >
+                <span>Assess Risk</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </button>
 
-          <button
-            onClick={() => handleNavClick('assessment')}
-            className="inline-flex items-center gap-2 bg-primary-container hover:bg-inverse-primary text-on-primary-container px-4 py-2 rounded-xl text-label-md font-label-md font-semibold transition-all duration-200 active:scale-[0.98] electric-glow border-t border-white/20"
-          >
-            <span>Assess Risk</span>
-            <span className="material-symbols-outlined text-sm">arrow_forward</span>
-          </button>
+              {/* User Menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/40 hover:bg-surface-container-high transition-all"
+                >
+                  <User size={18} className="text-on-surface-variant" />
+                  <span className="text-sm text-on-surface hidden sm:block">{user.full_name}</span>
+                </button>
+
+                {userMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-surface-container border border-outline-variant/40 rounded-lg shadow-lg py-2 z-50">
+                    <div className="px-4 py-2 border-b border-outline-variant/30">
+                      <p className="text-sm font-medium text-on-surface">{user.full_name}</p>
+                      <p className="text-xs text-on-surface-variant">{user.email}</p>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-2 text-left text-sm text-on-surface-variant hover:bg-surface-container-high flex items-center gap-2"
+                    >
+                      <LogOut size={16} />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              className="inline-flex items-center gap-2 bg-primary-container hover:bg-inverse-primary text-on-primary-container px-4 py-2 rounded-xl text-label-md font-label-md font-semibold transition-all duration-200 active:scale-[0.98] electric-glow border-t border-white/20"
+            >
+              <span>Sign In</span>
+            </button>
+          )}
 
           {/* Mobile menu toggle */}
           <button
