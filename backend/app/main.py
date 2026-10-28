@@ -16,6 +16,7 @@ from backend.app.schemas import (
 from backend.app.model import EquiRiskModelManager
 from backend.app.report_parser import parse_medical_report
 from backend.app.chat_service import ChatService, resolve_chroma_path
+from backend.app.auth import router as auth_router
 
 # Define path to model artifacts
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,6 +37,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include authentication router
+app.include_router(auth_router)
 
 # Instantiate model manager
 manager = EquiRiskModelManager(ARTIFACT_DIR)
